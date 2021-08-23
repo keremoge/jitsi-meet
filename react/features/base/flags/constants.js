@@ -220,3 +220,9 @@ export const WELCOME_PAGE_ENABLED = 'welcomepage.enabled';
  * Default: disabled (false).
  */
 export const REACTIONS_ENABLED = 'reactions.enabled';
+
+/**
+ * Flag indicating if the flashlight feature should be enabled.
+ * Default: disabled (false).
+ */
+export const IOS_FLASHLIGHT_ENABLED = 'ios.flashlight.enabled';

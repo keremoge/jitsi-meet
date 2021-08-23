@@ -160,6 +160,17 @@ static void initializeViewsMap() {
     [externalAPI sendSetVideoMuted:muted];
 }
 
+- (void)sendToggleCamera {
+    ExternalAPI *externalAPI = [[JitsiMeet sharedInstance] getExternalAPI];
+    [externalAPI sendToggleCamera];
+}
+
+
+- (void)sendToggleFlash {
+    ExternalAPI *externalAPI = [[JitsiMeet sharedInstance] getExternalAPI];
+    [externalAPI sendToggleFlash];
+}
+
 #pragma mark Private methods
 
 /**

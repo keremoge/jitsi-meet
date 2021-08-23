@@ -16,6 +16,7 @@
 
 @import UIKit;
 @import JitsiMeetSDK;
+@import AVFoundation;
 
 @interface ViewController : UIViewController<JitsiMeetViewDelegate>
 

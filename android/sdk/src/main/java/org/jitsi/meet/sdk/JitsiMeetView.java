@@ -23,6 +23,8 @@ import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReadableMap;
 
+import com.oney.WebRTCModule.WebRTCModule;
+
 import org.jitsi.meet.sdk.log.JitsiMeetLogger;
 
 import java.lang.reflect.Method;
@@ -206,5 +208,13 @@ public class JitsiMeetView extends BaseReactView<JitsiMeetViewListener>
     protected void onDetachedFromWindow() {
         dispose();
         super.onDetachedFromWindow();
+    }
+
+    public void toggleCamera(){
+        ReactInstanceManagerHolder.getNativeModule(WebRTCModule.class).toggleCamera();
+    }
+
+    public void toggleFlash(){
+        ReactInstanceManagerHolder.getNativeModule(WebRTCModule.class).toggleFlash();
     }
 }

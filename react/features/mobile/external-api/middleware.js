@@ -6,6 +6,11 @@ import { NativeEventEmitter, NativeModules } from 'react-native';
 import { ENDPOINT_TEXT_MESSAGE_NAME } from '../../../../modules/API/constants';
 import { appNavigate } from '../../app/actions';
 import { APP_WILL_MOUNT, APP_WILL_UNMOUNT } from '../../base/app/actionTypes';
+
+import { getLocalTrack } from '../../base/tracks/functions';
+import { CAMERA_FACING_MODE, toggleFlash } from '../../base/media';
+import { TRACK_UPDATED } from '../../base/tracks/actionTypes';
+
 import {
     CONFERENCE_FAILED,
     CONFERENCE_JOINED,
@@ -373,6 +378,13 @@ function _registerForNativeEvents(store) {
         dispatch(sendMessage(message));
     });
 
+    eventEmitter.addListener(ExternalAPI.TOGGLE_CAMERA_FACING_MODE, () => {
+        dispatch(toggleCamera(store));
+    });
+
+    eventEmitter.addListener(ExternalAPI.TOGGLE_FLASH, () => {
+        dispatch(_toggleFlash());
+    });
 }
 
 /**
@@ -639,4 +651,42 @@ function _swallowEvent(store, action, data) {
     default:
         return false;
     }
+}
+
+function _toggleFlash() {
+    toggleFlash();
+};
+
+function toggleCamera(store) {
+//console.log('OKAN');
+    const localTrack = _getLocalTrack(store, MEDIA_TYPE.VIDEO);
+        let jitsiTrack;
+        if (localTrack && (jitsiTrack = localTrack.jitsiTrack)) {
+            // XXX MediaStreamTrack._switchCamera is a custom function
+            // implemented in react-native-webrtc for video which switches
+            // between the cameras via a native WebRTC library implementation
+            // without making any changes to the track.
+            jitsiTrack._switchCamera();
+            // Don't mirror the video of the back/environment-facing camera.
+            const mirror
+                = jitsiTrack.getCameraFacingMode() === CAMERA_FACING_MODE.USER;
+            store.dispatch({
+                type: TRACK_UPDATED,
+                track: {
+                    jitsiTrack,
+                    mirror
+                }
+            });
+        }
+};
+
+function _getLocalTrack( { 
+    getState }: { getState: Function },
+    mediaType: MEDIA_TYPE,
+    includePending: boolean = false) {
+    return (
+    getLocalTrack(
+    getState()['features/base/tracks'],
+    mediaType,
+    includePending));
 }

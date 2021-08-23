@@ -15,6 +15,7 @@ import {
     VIDEO_MUTISM_AUTHORITY,
     TOGGLE_CAMERA_FACING_MODE,
     toggleCameraFacingMode
+    ,TOGGLE_FLASH
 } from '../media';
 import { MiddlewareRegistry } from '../redux';
 
@@ -152,6 +153,15 @@ MiddlewareRegistry.register(store => next => action => {
         }
         break;
 
+    case TOGGLE_FLASH:
+        const localTrack = _getLocalTrack(store, MEDIA_TYPE.VIDEO);
+                let jitsiTrack;
+                if (localTrack && (jitsiTrack = localTrack.jitsiTrack)); {
+                    
+                    jitsiTrack.toggleFlash();
+                }
+        break;
+        
     case TRACK_UPDATED:
         // TODO Remove the following calls to APP.UI once components interested
         // in track mute changes are moved into React and/or redux.

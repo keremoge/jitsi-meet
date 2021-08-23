@@ -29,6 +29,7 @@ import {
     TRACK_UPDATED,
     TRACK_UPDATE_LAST_VIDEO_MEDIA_EVENT,
     TRACK_WILL_CREATE
+    ,TOGGLE_FLASH
 } from './actionTypes';
 import {
     createLocalTracksF,
@@ -764,5 +765,11 @@ export function toggleCamera() {
 
         // FIXME: See above.
         await APP.conference.useVideoStream(newVideoTrack);
+    };
+}
+
+export function toggleFlash() {
+    return {
+        type: TOGGLE_FLASH
     };
 }

@@ -12,8 +12,10 @@ import {
     SET_VIDEO_MUTED,
     STORE_VIDEO_TRANSFORM,
     TOGGLE_CAMERA_FACING_MODE
+    ,TOGGLE_FLASH
 } from './actionTypes';
 import { CAMERA_FACING_MODE } from './constants';
+import { IOS_FLASHLIGHT_ENABLED } from '../flags';
 
 /**
  * Media state object for local audio.
@@ -143,6 +145,10 @@ function _video(state = _VIDEO_INITIAL_MEDIA_STATE, action) {
         };
     }
 
+    case TOGGLE_FLASH: {
+        return IOS_FLASHLIGHT_ENABLED;
+    }
+    
     case TRACK_REMOVED:
         return _trackRemoved(state, action);
 
