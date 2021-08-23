@@ -13,6 +13,7 @@ import {
     SET_VIDEO_MUTED,
     STORE_VIDEO_TRANSFORM,
     TOGGLE_CAMERA_FACING_MODE
+    ,TOGGLE_FLASH
 } from './actionTypes';
 import {
     MEDIA_TYPE,
@@ -168,4 +169,10 @@ export function toggleCameraFacingMode() {
     return {
         type: TOGGLE_CAMERA_FACING_MODE
     };
+}
+
+export function toggleFlash() {
+    return {
+        type: TOGGLE_FLASH
+    };   
 }

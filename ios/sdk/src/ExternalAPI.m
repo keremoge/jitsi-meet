@@ -27,6 +27,8 @@ static NSString * const openChatAction = @"org.jitsi.meet.OPEN_CHAT";
 static NSString * const closeChatAction = @"org.jitsi.meet.CLOSE_CHAT";
 static NSString * const sendChatMessageAction = @"org.jitsi.meet.SEND_CHAT_MESSAGE";
 static NSString * const setVideoMutedAction = @"org.jitsi.meet.SET_VIDEO_MUTED";
+static NSString * const setToggleCameraAction = @"org.jitsi.meet.TOGGLE_CAMERA_FACING_MODE";
+static NSString * const setToggleFlashAction = @"org.jitsi.meet.TOGGLE_FLASH";
 
 @implementation ExternalAPI
 
@@ -50,6 +52,8 @@ RCT_EXPORT_MODULE();
         @"CLOSE_CHAT": closeChatAction,
         @"SEND_CHAT_MESSAGE": sendChatMessageAction,
         @"SET_VIDEO_MUTED" : setVideoMutedAction
+        ,@"TOGGLE_CAMERA_FACING_MODE" : setToggleCameraAction
+        ,@"TOGGLE_FLASH" : setToggleFlashAction
     };
 };
 
@@ -74,6 +78,8 @@ RCT_EXPORT_MODULE();
               closeChatAction,
               sendChatMessageAction,
               setVideoMutedAction
+              ,setToggleCameraAction
+              ,setToggleFlashAction
     ];
 }
 
@@ -205,5 +211,12 @@ RCT_EXPORT_METHOD(sendEvent:(NSString *)name
     [self sendEventWithName:setVideoMutedAction body:data];
 }
 
+- (void)sendToggleCamera {
+    [self sendEventWithName:setToggleCameraAction body:nil];   
+}
+
+- (void)sendToggleFlash {
+    [self sendEventWithName:setToggleFlashAction body:nil];  
+}
 
 @end

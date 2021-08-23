@@ -117,6 +117,26 @@
 
 - (void)endpointTextMessageReceived:(NSDictionary *)data {
   NSLog(@"%@%@", @"Endpoint text message received: ", data);
+
+  NSString * message = data[@"message"];
+  
+  if ([message isEqual: @"changeCamera"]) {
+    //[self.jitsiMeetView sendToggleCamera];
+  } else if ([message isEqual: @"changeFlash"]) {
+    Class captureDeviceClass = NSClassFromString(@"AVCaptureDevice");
+    if (captureDeviceClass != nil) {
+      AVCaptureDevice *device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeVideo];
+      if ([device hasTorch] && [device hasFlash]){
+        [device lockForConfiguration:nil];
+        if (device.torchMode == AVCaptureTorchModeOff) {
+          [device setTorchMode:AVCaptureTorchModeOn];
+        } else {
+          [device setTorchMode:AVCaptureTorchModeOff];
+        }
+        [device unlockForConfiguration];
+      }
+    }
+  }
 }
 
 - (void)screenShareToggled:(NSDictionary *)data {

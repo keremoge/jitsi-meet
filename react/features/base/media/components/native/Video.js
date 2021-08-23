@@ -92,7 +92,7 @@ export default class Video extends Component<Props> {
             const rtcView
                 = (
                     <RTCView
-                        mirror = { this.props.mirror }
+                        mirror = { false }
                         objectFit = { objectFit }
                         streamURL = { stream.toURL() }
                         style = { style }
