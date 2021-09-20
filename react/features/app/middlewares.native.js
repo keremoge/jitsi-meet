@@ -4,7 +4,6 @@ import '../authentication/middleware';
 import '../mobile/audio-mode/middleware';
 import '../mobile/back-button/middleware';
 import '../mobile/background/middleware';
-import '../mobile/call-integration/middleware';
 import '../mobile/external-api/middleware';
 import '../mobile/full-screen/middleware';
 import '../mobile/incoming-call/middleware';
