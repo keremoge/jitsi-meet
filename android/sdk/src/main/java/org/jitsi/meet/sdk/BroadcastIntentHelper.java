@@ -54,4 +54,8 @@ public class BroadcastIntentHelper {
         intent.putExtra("enabled", enabled);
         return intent;
     }
+
+    public static Intent buildToggleCameraIntent() {
+        return new Intent(BroadcastAction.Type.TOGGLE_CAMERA.getAction());
+    }
 }
