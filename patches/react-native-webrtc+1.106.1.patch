@@ -1,0 +1,1459 @@
+diff --git a/node_modules/react-native-webrtc/android/libs/libwebrtc.jar b/node_modules/react-native-webrtc/android/libs/libwebrtc.jar
+index 7962021..3ce5322 100644
+Binary files a/node_modules/react-native-webrtc/android/libs/libwebrtc.jar and b/node_modules/react-native-webrtc/android/libs/libwebrtc.jar differ
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/CameraCaptureController.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/CameraCaptureController.java
+index bcef7b1..7bf0fcf 100644
+--- a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/CameraCaptureController.java
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/CameraCaptureController.java
+@@ -203,4 +203,11 @@ public class CameraCaptureController extends AbstractVideoCaptureController {
+ 
+         return null;
+     }
++
++    public void toggleFlash() {
++        if(videoCapturer instanceof CameraVideoCapturer) {
++            CameraVideoCapturer capturer = (CameraVideoCapturer)videoCapturer;
++            capturer.toggleFlash();
++        }
++    }
+ }
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+index 5097b55..a1e4178 100644
+--- a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/GetUserMediaImpl.java
+@@ -466,4 +466,20 @@ class GetUserMediaImpl {
+     private interface BiConsumer<T, U> {
+         void accept(T t, U u);
+     }
++
++    void toggleFlash(String trackId) {
++        TrackPrivate track = tracks.get(trackId);
++        if (track != null && track.videoCaptureController instanceof CameraCaptureController) {
++            CameraCaptureController cameraCaptureController = (CameraCaptureController) track.videoCaptureController;
++            cameraCaptureController.toggleFlash();
++        }
++    }
++
++    String getVideoTrack() {
++        for (Map.Entry<String, TrackPrivate> item : tracks.entrySet()) {
++            if (item.getValue().track.kind().equals("video"))
++                return item.getValue().track.id();
++        }
++        return "0";
++    }
+ }
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+index 4e2d4f2..658621d 100644
+--- a/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
++++ b/node_modules/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCModule.java
+@@ -966,4 +966,16 @@ public class WebRTCModule extends ReactContextBaseJavaModule {
+     public void removeListeners(Integer count) {
+         // Keep: Required for RN built in Event Emitter Calls.
+     }
++
++    @ReactMethod
++    public void mediaStreamTrackToggleFlash(String id) {
++        MediaStreamTrack track = getLocalTrack(id);
++        if (track != null) {
++            getUserMediaImpl.toggleFlash(id);
++        }
++    }
++
++    public void toggleFlash() {
++        getUserMediaImpl.toggleFlash(getUserMediaImpl.getVideoTrack());
++    }
+ }
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera1Session.java b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera1Session.java
+new file mode 100644
+index 0000000..977ae78
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera1Session.java
+@@ -0,0 +1,302 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++package org.webrtc;
++import android.content.Context;
++import android.os.Handler;
++import android.os.SystemClock;
++import java.io.IOException;
++import java.nio.ByteBuffer;
++import java.util.List;
++import java.util.concurrent.TimeUnit;
++import org.webrtc.CameraEnumerationAndroid.CaptureFormat;
++@SuppressWarnings("deprecation")
++class Camera1Session implements CameraSession {
++  private static final String TAG = "Camera1Session";
++  private static final int NUMBER_OF_CAPTURE_BUFFERS = 3;
++  private static final Histogram camera1StartTimeMsHistogram =
++      Histogram.createCounts("WebRTC.Android.Camera1.StartTimeMs", 1, 10000, 50);
++  private static final Histogram camera1StopTimeMsHistogram =
++      Histogram.createCounts("WebRTC.Android.Camera1.StopTimeMs", 1, 10000, 50);
++  private static final Histogram camera1ResolutionHistogram = Histogram.createEnumeration(
++      "WebRTC.Android.Camera1.Resolution", CameraEnumerationAndroid.COMMON_RESOLUTIONS.size());
++  private static enum SessionState { RUNNING, STOPPED }
++  private final Handler cameraThreadHandler;
++  private final Events events;
++  private final boolean captureToTexture;
++  private final Context applicationContext;
++  private final SurfaceTextureHelper surfaceTextureHelper;
++  private final int cameraId;
++  private final android.hardware.Camera camera;
++  private final android.hardware.Camera.CameraInfo info;
++  private final CaptureFormat captureFormat;
++  // Used only for stats. Only used on the camera thread.
++  private final long constructionTimeNs; // Construction time of this class.
++  private SessionState state;
++  private boolean firstFrameReported;
++  private boolean isFlashEnabled = false;
++
++  // TODO(titovartem) make correct fix during webrtc:9175
++  @SuppressWarnings("ByteBufferBackingArray")
++  public static void create(final CreateSessionCallback callback, final Events events,
++      final boolean captureToTexture, final Context applicationContext,
++      final SurfaceTextureHelper surfaceTextureHelper, final int cameraId, final int width,
++      final int height, final int framerate) {
++    final long constructionTimeNs = System.nanoTime();
++    Logging.d(TAG, "Open camera " + cameraId);
++    events.onCameraOpening();
++    final android.hardware.Camera camera;
++    try {
++      camera = android.hardware.Camera.open(cameraId);
++    } catch (RuntimeException e) {
++      callback.onFailure(FailureType.ERROR, e.getMessage());
++      return;
++    }
++    if (camera == null) {
++      callback.onFailure(FailureType.ERROR,
++          "android.hardware.Camera.open returned null for camera id = " + cameraId);
++      return;
++    }
++    try {
++      camera.setPreviewTexture(surfaceTextureHelper.getSurfaceTexture());
++    } catch (IOException | RuntimeException e) {
++      camera.release();
++      callback.onFailure(FailureType.ERROR, e.getMessage());
++      return;
++    }
++    final android.hardware.Camera.CameraInfo info = new android.hardware.Camera.CameraInfo();
++    android.hardware.Camera.getCameraInfo(cameraId, info);
++    final CaptureFormat captureFormat;
++    try {
++      final android.hardware.Camera.Parameters parameters = camera.getParameters();
++      captureFormat = findClosestCaptureFormat(parameters, width, height, framerate);
++      final Size pictureSize = findClosestPictureSize(parameters, width, height);
++      updateCameraParameters(camera, parameters, captureFormat, pictureSize, captureToTexture);
++    } catch (RuntimeException e) {
++      camera.release();
++      callback.onFailure(FailureType.ERROR, e.getMessage());
++      return;
++    }
++    if (!captureToTexture) {
++      final int frameSize = captureFormat.frameSize();
++      for (int i = 0; i < NUMBER_OF_CAPTURE_BUFFERS; ++i) {
++        final ByteBuffer buffer = ByteBuffer.allocateDirect(frameSize);
++        camera.addCallbackBuffer(buffer.array());
++      }
++    }
++    // Calculate orientation manually and send it as CVO insted.
++    camera.setDisplayOrientation(0 /* degrees */);
++    callback.onDone(new Camera1Session(events, captureToTexture, applicationContext,
++        surfaceTextureHelper, cameraId, camera, info, captureFormat, constructionTimeNs));
++  }
++  private static void updateCameraParameters(android.hardware.Camera camera,
++      android.hardware.Camera.Parameters parameters, CaptureFormat captureFormat, Size pictureSize,
++      boolean captureToTexture) {
++    final List<String> focusModes = parameters.getSupportedFocusModes();
++    parameters.setPreviewFpsRange(captureFormat.framerate.min, captureFormat.framerate.max);
++    parameters.setPreviewSize(captureFormat.width, captureFormat.height);
++    parameters.setPictureSize(pictureSize.width, pictureSize.height);
++    if (!captureToTexture) {
++      parameters.setPreviewFormat(captureFormat.imageFormat);
++    }
++    if (parameters.isVideoStabilizationSupported()) {
++      parameters.setVideoStabilization(true);
++    }
++    if (focusModes.contains(android.hardware.Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
++      parameters.setFocusMode(android.hardware.Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
++    }
++    camera.setParameters(parameters);
++  }
++  private static CaptureFormat findClosestCaptureFormat(
++      android.hardware.Camera.Parameters parameters, int width, int height, int framerate) {
++    // Find closest supported format for `width` x `height` @ `framerate`.
++    final List<CaptureFormat.FramerateRange> supportedFramerates =
++        Camera1Enumerator.convertFramerates(parameters.getSupportedPreviewFpsRange());
++    Logging.d(TAG, "Available fps ranges: " + supportedFramerates);
++    final CaptureFormat.FramerateRange fpsRange =
++        CameraEnumerationAndroid.getClosestSupportedFramerateRange(supportedFramerates, framerate);
++    final Size previewSize = CameraEnumerationAndroid.getClosestSupportedSize(
++        Camera1Enumerator.convertSizes(parameters.getSupportedPreviewSizes()), width, height);
++    CameraEnumerationAndroid.reportCameraResolution(camera1ResolutionHistogram, previewSize);
++    return new CaptureFormat(previewSize.width, previewSize.height, fpsRange);
++  }
++  private static Size findClosestPictureSize(
++      android.hardware.Camera.Parameters parameters, int width, int height) {
++    return CameraEnumerationAndroid.getClosestSupportedSize(
++        Camera1Enumerator.convertSizes(parameters.getSupportedPictureSizes()), width, height);
++  }
++  private Camera1Session(Events events, boolean captureToTexture, Context applicationContext,
++      SurfaceTextureHelper surfaceTextureHelper, int cameraId, android.hardware.Camera camera,
++      android.hardware.Camera.CameraInfo info, CaptureFormat captureFormat,
++      long constructionTimeNs) {
++    Logging.d(TAG, "Create new camera1 session on camera " + cameraId);
++    this.cameraThreadHandler = new Handler();
++    this.events = events;
++    this.captureToTexture = captureToTexture;
++    this.applicationContext = applicationContext;
++    this.surfaceTextureHelper = surfaceTextureHelper;
++    this.cameraId = cameraId;
++    this.camera = camera;
++    this.info = info;
++    this.captureFormat = captureFormat;
++    this.constructionTimeNs = constructionTimeNs;
++    surfaceTextureHelper.setTextureSize(captureFormat.width, captureFormat.height);
++    startCapturing();
++  }
++  @Override
++  public void stop() {
++    Logging.d(TAG, "Stop camera1 session on camera " + cameraId);
++    checkIsOnCameraThread();
++    if (state != SessionState.STOPPED) {
++      final long stopStartTime = System.nanoTime();
++      stopInternal();
++      final int stopTimeMs = (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - stopStartTime);
++      camera1StopTimeMsHistogram.addSample(stopTimeMs);
++    }
++  }
++  private void startCapturing() {
++    Logging.d(TAG, "Start capturing");
++    checkIsOnCameraThread();
++    state = SessionState.RUNNING;
++    camera.setErrorCallback(new android.hardware.Camera.ErrorCallback() {
++      @Override
++      public void onError(int error, android.hardware.Camera camera) {
++        String errorMessage;
++        if (error == android.hardware.Camera.CAMERA_ERROR_SERVER_DIED) {
++          errorMessage = "Camera server died!";
++        } else {
++          errorMessage = "Camera error: " + error;
++        }
++        Logging.e(TAG, errorMessage);
++        stopInternal();
++        if (error == android.hardware.Camera.CAMERA_ERROR_EVICTED) {
++          events.onCameraDisconnected(Camera1Session.this);
++        } else {
++          events.onCameraError(Camera1Session.this, errorMessage);
++        }
++      }
++    });
++    if (captureToTexture) {
++      listenForTextureFrames();
++    } else {
++      listenForBytebufferFrames();
++    }
++    try {
++      camera.startPreview();
++    } catch (RuntimeException e) {
++      stopInternal();
++      events.onCameraError(this, e.getMessage());
++    }
++  }
++  private void stopInternal() {
++    Logging.d(TAG, "Stop internal");
++    checkIsOnCameraThread();
++    if (state == SessionState.STOPPED) {
++      Logging.d(TAG, "Camera is already stopped");
++      return;
++    }
++    state = SessionState.STOPPED;
++    surfaceTextureHelper.stopListening();
++    // Note: stopPreview or other driver code might deadlock. Deadlock in
++    // android.hardware.Camera._stopPreview(Native Method) has been observed on
++    // Nexus 5 (hammerhead), OS version LMY48I.
++    camera.stopPreview();
++    camera.release();
++    events.onCameraClosed(this);
++    Logging.d(TAG, "Stop done");
++  }
++  private void listenForTextureFrames() {
++    surfaceTextureHelper.startListening((VideoFrame frame) -> {
++      checkIsOnCameraThread();
++      if (state != SessionState.RUNNING) {
++        Logging.d(TAG, "Texture frame captured but camera is no longer running.");
++        return;
++      }
++      if (!firstFrameReported) {
++        final int startTimeMs =
++            (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
++        camera1StartTimeMsHistogram.addSample(startTimeMs);
++        firstFrameReported = true;
++      }
++      // Undo the mirror that the OS "helps" us with.
++      // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
++      final VideoFrame modifiedFrame = new VideoFrame(
++          CameraSession.createTextureBufferWithModifiedTransformMatrix(
++              (TextureBufferImpl) frame.getBuffer(),
++              /* mirror= */ info.facing == android.hardware.Camera.CameraInfo.CAMERA_FACING_FRONT,
++              /* rotation= */ 0),
++          /* rotation= */ getFrameOrientation(), frame.getTimestampNs());
++      events.onFrameCaptured(Camera1Session.this, modifiedFrame);
++      modifiedFrame.release();
++    });
++  }
++  private void listenForBytebufferFrames() {
++    camera.setPreviewCallbackWithBuffer(new android.hardware.Camera.PreviewCallback() {
++      @Override
++      public void onPreviewFrame(final byte[] data, android.hardware.Camera callbackCamera) {
++        checkIsOnCameraThread();
++        if (callbackCamera != camera) {
++          Logging.e(TAG, "Callback from a different camera. This should never happen.");
++          return;
++        }
++        if (state != SessionState.RUNNING) {
++          Logging.d(TAG, "Bytebuffer frame captured but camera is no longer running.");
++          return;
++        }
++        final long captureTimeNs = TimeUnit.MILLISECONDS.toNanos(SystemClock.elapsedRealtime());
++        if (!firstFrameReported) {
++          final int startTimeMs =
++              (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
++          camera1StartTimeMsHistogram.addSample(startTimeMs);
++          firstFrameReported = true;
++        }
++        VideoFrame.Buffer frameBuffer = new NV21Buffer(
++            data, captureFormat.width, captureFormat.height, () -> cameraThreadHandler.post(() -> {
++              if (state == SessionState.RUNNING) {
++                camera.addCallbackBuffer(data);
++              }
++            }));
++        final VideoFrame frame = new VideoFrame(frameBuffer, getFrameOrientation(), captureTimeNs);
++        events.onFrameCaptured(Camera1Session.this, frame);
++        frame.release();
++      }
++    });
++  }
++  private int getFrameOrientation() {
++    int rotation = CameraSession.getDeviceOrientation(applicationContext);
++    if (info.facing == android.hardware.Camera.CameraInfo.CAMERA_FACING_BACK) {
++      rotation = 360 - rotation;
++    }
++    return (info.orientation + rotation) % 360;
++  }
++  private void checkIsOnCameraThread() {
++    if (Thread.currentThread() != cameraThreadHandler.getLooper().getThread()) {
++      throw new IllegalStateException("Wrong thread");
++    }
++  }
++
++  @Override
++  public void toggleFlash() {
++    android.hardware.Camera.Parameters parameters = camera.getParameters();
++    if(!isFlashEnabled) {
++      List <String> supportedTorchModes = parameters.getSupportedFlashModes();
++      if(supportedTorchModes != null) {
++        if(supportedTorchModes.contains(android.hardware.Camera.Parameters.FLASH_MODE_TORCH)) {
++          parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_TORCH);
++        } else if(supportedTorchModes.contains(android.hardware.Camera.Parameters.FLASH_MODE_ON)) {
++          parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_ON);
++        }
++        isFlashEnabled = true;
++      }
++    } else {
++        parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_OFF);
++        isFlashEnabled = false;
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera2Session.java b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera2Session.java
+new file mode 100644
+index 0000000..44bc4de
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/Camera2Session.java
+@@ -0,0 +1,386 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++package org.webrtc;
++import android.annotation.TargetApi;
++import android.content.Context;
++import android.hardware.camera2.CameraAccessException;
++import android.hardware.camera2.CameraCaptureSession;
++import android.hardware.camera2.CameraCharacteristics;
++import android.hardware.camera2.CameraDevice;
++import android.hardware.camera2.CameraManager;
++import android.hardware.camera2.CameraMetadata;
++import android.hardware.camera2.CaptureFailure;
++import android.hardware.camera2.CaptureRequest;
++import android.os.Handler;
++import androidx.annotation.Nullable;
++import android.util.Range;
++import android.view.Surface;
++import java.util.Arrays;
++import java.util.List;
++import java.util.concurrent.TimeUnit;
++import org.webrtc.CameraEnumerationAndroid.CaptureFormat;
++@TargetApi(21)
++class Camera2Session implements CameraSession {
++  private static final String TAG = "Camera2Session";
++  private static final Histogram camera2StartTimeMsHistogram =
++      Histogram.createCounts("WebRTC.Android.Camera2.StartTimeMs", 1, 10000, 50);
++  private static final Histogram camera2StopTimeMsHistogram =
++      Histogram.createCounts("WebRTC.Android.Camera2.StopTimeMs", 1, 10000, 50);
++  private static final Histogram camera2ResolutionHistogram = Histogram.createEnumeration(
++      "WebRTC.Android.Camera2.Resolution", CameraEnumerationAndroid.COMMON_RESOLUTIONS.size());
++  private static enum SessionState { RUNNING, STOPPED }
++  private final Handler cameraThreadHandler;
++  private final CreateSessionCallback callback;
++  private final Events events;
++  private final Context applicationContext;
++  private final CameraManager cameraManager;
++  private final SurfaceTextureHelper surfaceTextureHelper;
++  private final String cameraId;
++  private final int width;
++  private final int height;
++  private final int framerate;
++  // Initialized at start
++  private CameraCharacteristics cameraCharacteristics;
++  private int cameraOrientation;
++  private boolean isCameraFrontFacing;
++  private int fpsUnitFactor;
++  private CaptureFormat captureFormat;
++  // Initialized when camera opens
++  @Nullable private CameraDevice cameraDevice;
++  @Nullable private Surface surface;
++  // Initialized when capture session is created
++  @Nullable private CameraCaptureSession captureSession;
++  // State
++  private SessionState state = SessionState.RUNNING;
++  private boolean firstFrameReported;
++  // Used only for stats. Only used on the camera thread.
++  private final long constructionTimeNs; // Construction time of this class.
++
++  private boolean isFlashEnabled = false;
++  private CaptureRequest.Builder captureRequestBuilder;
++
++  private class CameraStateCallback extends CameraDevice.StateCallback {
++    private String getErrorDescription(int errorCode) {
++      switch (errorCode) {
++        case CameraDevice.StateCallback.ERROR_CAMERA_DEVICE:
++          return "Camera device has encountered a fatal error.";
++        case CameraDevice.StateCallback.ERROR_CAMERA_DISABLED:
++          return "Camera device could not be opened due to a device policy.";
++        case CameraDevice.StateCallback.ERROR_CAMERA_IN_USE:
++          return "Camera device is in use already.";
++        case CameraDevice.StateCallback.ERROR_CAMERA_SERVICE:
++          return "Camera service has encountered a fatal error.";
++        case CameraDevice.StateCallback.ERROR_MAX_CAMERAS_IN_USE:
++          return "Camera device could not be opened because"
++              + " there are too many other open camera devices.";
++        default:
++          return "Unknown camera error: " + errorCode;
++      }
++    }
++    @Override
++    public void onDisconnected(CameraDevice camera) {
++      checkIsOnCameraThread();
++      final boolean startFailure = (captureSession == null) && (state != SessionState.STOPPED);
++      state = SessionState.STOPPED;
++      stopInternal();
++      if (startFailure) {
++        callback.onFailure(FailureType.DISCONNECTED, "Camera disconnected / evicted.");
++      } else {
++        events.onCameraDisconnected(Camera2Session.this);
++      }
++    }
++    @Override
++    public void onError(CameraDevice camera, int errorCode) {
++      checkIsOnCameraThread();
++      reportError(getErrorDescription(errorCode));
++    }
++    @Override
++    public void onOpened(CameraDevice camera) {
++      checkIsOnCameraThread();
++      Logging.d(TAG, "Camera opened.");
++      cameraDevice = camera;
++      surfaceTextureHelper.setTextureSize(captureFormat.width, captureFormat.height);
++      surface = new Surface(surfaceTextureHelper.getSurfaceTexture());
++      try {
++        camera.createCaptureSession(
++            Arrays.asList(surface), new CaptureSessionCallback(), cameraThreadHandler);
++      } catch (CameraAccessException e) {
++        reportError("Failed to create capture session. " + e);
++        return;
++      }
++    }
++    @Override
++    public void onClosed(CameraDevice camera) {
++      checkIsOnCameraThread();
++      Logging.d(TAG, "Camera device closed.");
++      events.onCameraClosed(Camera2Session.this);
++    }
++  }
++  private class CaptureSessionCallback extends CameraCaptureSession.StateCallback {
++    @Override
++    public void onConfigureFailed(CameraCaptureSession session) {
++      checkIsOnCameraThread();
++      session.close();
++      reportError("Failed to configure capture session.");
++    }
++    @Override
++    public void onConfigured(CameraCaptureSession session) {
++      checkIsOnCameraThread();
++      Logging.d(TAG, "Camera capture session configured.");
++      captureSession = session;
++      try {
++        /*
++         * The viable options for video capture requests are:
++         * TEMPLATE_PREVIEW: High frame rate is given priority over the highest-quality
++         *   post-processing.
++         * TEMPLATE_RECORD: Stable frame rate is used, and post-processing is set for recording
++         *   quality.
++         */
++        captureRequestBuilder =
++            cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
++        // Set auto exposure fps range.
++        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
++            new Range<Integer>(captureFormat.framerate.min / fpsUnitFactor,
++                captureFormat.framerate.max / fpsUnitFactor));
++        captureRequestBuilder.set(
++            CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
++        captureRequestBuilder.set(CaptureRequest.CONTROL_AE_LOCK, false);
++        chooseStabilizationMode(captureRequestBuilder);
++        chooseFocusMode(captureRequestBuilder);
++        captureRequestBuilder.addTarget(surface);
++        session.setRepeatingRequest(
++            captureRequestBuilder.build(), new CameraCaptureCallback(), cameraThreadHandler);
++      } catch (CameraAccessException e) {
++        reportError("Failed to start capture request. " + e);
++        return;
++      }
++      surfaceTextureHelper.startListening((VideoFrame frame) -> {
++        checkIsOnCameraThread();
++        if (state != SessionState.RUNNING) {
++          Logging.d(TAG, "Texture frame captured but camera is no longer running.");
++          return;
++        }
++        if (!firstFrameReported) {
++          firstFrameReported = true;
++          final int startTimeMs =
++              (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - constructionTimeNs);
++          camera2StartTimeMsHistogram.addSample(startTimeMs);
++        }
++        // Undo the mirror that the OS "helps" us with.
++        // http://developer.android.com/reference/android/hardware/Camera.html#setDisplayOrientation(int)
++        // Also, undo camera orientation, we report it as rotation instead.
++        final VideoFrame modifiedFrame =
++            new VideoFrame(CameraSession.createTextureBufferWithModifiedTransformMatrix(
++                               (TextureBufferImpl) frame.getBuffer(),
++                               /* mirror= */ isCameraFrontFacing,
++                               /* rotation= */ -cameraOrientation),
++                /* rotation= */ getFrameOrientation(), frame.getTimestampNs());
++        events.onFrameCaptured(Camera2Session.this, modifiedFrame);
++        modifiedFrame.release();
++      });
++      Logging.d(TAG, "Camera device successfully started.");
++      callback.onDone(Camera2Session.this);
++    }
++    // Prefers optical stabilization over software stabilization if available. Only enables one of
++    // the stabilization modes at a time because having both enabled can cause strange results.
++    private void chooseStabilizationMode(CaptureRequest.Builder captureRequestBuilder) {
++      final int[] availableOpticalStabilization = cameraCharacteristics.get(
++          CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);
++      if (availableOpticalStabilization != null) {
++        for (int mode : availableOpticalStabilization) {
++          if (mode == CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON) {
++            captureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
++                CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON);
++            captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
++                CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
++            Logging.d(TAG, "Using optical stabilization.");
++            return;
++          }
++        }
++      }
++      // If no optical mode is available, try software.
++      final int[] availableVideoStabilization = cameraCharacteristics.get(
++          CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
++      for (int mode : availableVideoStabilization) {
++        if (mode == CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON) {
++          captureRequestBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
++              CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON);
++          captureRequestBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
++              CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
++          Logging.d(TAG, "Using video stabilization.");
++          return;
++        }
++      }
++      Logging.d(TAG, "Stabilization not available.");
++    }
++    private void chooseFocusMode(CaptureRequest.Builder captureRequestBuilder) {
++      final int[] availableFocusModes =
++          cameraCharacteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
++      for (int mode : availableFocusModes) {
++        if (mode == CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO) {
++          captureRequestBuilder.set(
++              CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
++          Logging.d(TAG, "Using continuous video auto-focus.");
++          return;
++        }
++      }
++      Logging.d(TAG, "Auto-focus is not available.");
++    }
++  }
++  private static class CameraCaptureCallback extends CameraCaptureSession.CaptureCallback {
++    @Override
++    public void onCaptureFailed(
++        CameraCaptureSession session, CaptureRequest request, CaptureFailure failure) {
++      Logging.d(TAG, "Capture failed: " + failure);
++    }
++  }
++  public static void create(CreateSessionCallback callback, Events events,
++      Context applicationContext, CameraManager cameraManager,
++      SurfaceTextureHelper surfaceTextureHelper, String cameraId, int width, int height,
++      int framerate) {
++    new Camera2Session(callback, events, applicationContext, cameraManager, surfaceTextureHelper,
++        cameraId, width, height, framerate);
++  }
++  private Camera2Session(CreateSessionCallback callback, Events events, Context applicationContext,
++      CameraManager cameraManager, SurfaceTextureHelper surfaceTextureHelper, String cameraId,
++      int width, int height, int framerate) {
++    Logging.d(TAG, "Create new camera2 session on camera " + cameraId);
++    constructionTimeNs = System.nanoTime();
++    this.cameraThreadHandler = new Handler();
++    this.callback = callback;
++    this.events = events;
++    this.applicationContext = applicationContext;
++    this.cameraManager = cameraManager;
++    this.surfaceTextureHelper = surfaceTextureHelper;
++    this.cameraId = cameraId;
++    this.width = width;
++    this.height = height;
++    this.framerate = framerate;
++    start();
++  }
++  private void start() {
++    checkIsOnCameraThread();
++    Logging.d(TAG, "start");
++    try {
++      cameraCharacteristics = cameraManager.getCameraCharacteristics(cameraId);
++    } catch (final CameraAccessException e) {
++      reportError("getCameraCharacteristics(): " + e.getMessage());
++      return;
++    }
++    cameraOrientation = cameraCharacteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
++    isCameraFrontFacing = cameraCharacteristics.get(CameraCharacteristics.LENS_FACING)
++        == CameraMetadata.LENS_FACING_FRONT;
++    findCaptureFormat();
++    openCamera();
++  }
++  private void findCaptureFormat() {
++    checkIsOnCameraThread();
++    Range<Integer>[] fpsRanges =
++        cameraCharacteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
++    fpsUnitFactor = Camera2Enumerator.getFpsUnitFactor(fpsRanges);
++    List<CaptureFormat.FramerateRange> framerateRanges =
++        Camera2Enumerator.convertFramerates(fpsRanges, fpsUnitFactor);
++    List<Size> sizes = Camera2Enumerator.getSupportedSizes(cameraCharacteristics);
++    Logging.d(TAG, "Available preview sizes: " + sizes);
++    Logging.d(TAG, "Available fps ranges: " + framerateRanges);
++    if (framerateRanges.isEmpty() || sizes.isEmpty()) {
++      reportError("No supported capture formats.");
++      return;
++    }
++    final CaptureFormat.FramerateRange bestFpsRange =
++        CameraEnumerationAndroid.getClosestSupportedFramerateRange(framerateRanges, framerate);
++    final Size bestSize = CameraEnumerationAndroid.getClosestSupportedSize(sizes, width, height);
++    CameraEnumerationAndroid.reportCameraResolution(camera2ResolutionHistogram, bestSize);
++    captureFormat = new CaptureFormat(bestSize.width, bestSize.height, bestFpsRange);
++    Logging.d(TAG, "Using capture format: " + captureFormat);
++  }
++  private void openCamera() {
++    checkIsOnCameraThread();
++    Logging.d(TAG, "Opening camera " + cameraId);
++    events.onCameraOpening();
++    try {
++      cameraManager.openCamera(cameraId, new CameraStateCallback(), cameraThreadHandler);
++    } catch (CameraAccessException e) {
++      reportError("Failed to open camera: " + e);
++      return;
++    }
++  }
++  @Override
++  public void stop() {
++    Logging.d(TAG, "Stop camera2 session on camera " + cameraId);
++    checkIsOnCameraThread();
++    if (state != SessionState.STOPPED) {
++      final long stopStartTime = System.nanoTime();
++      state = SessionState.STOPPED;
++      stopInternal();
++      final int stopTimeMs = (int) TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - stopStartTime);
++      camera2StopTimeMsHistogram.addSample(stopTimeMs);
++    }
++  }
++  private void stopInternal() {
++    Logging.d(TAG, "Stop internal");
++    checkIsOnCameraThread();
++    surfaceTextureHelper.stopListening();
++    if (captureSession != null) {
++      captureSession.close();
++      captureSession = null;
++    }
++    if (surface != null) {
++      surface.release();
++      surface = null;
++    }
++    if (cameraDevice != null) {
++      cameraDevice.close();
++      cameraDevice = null;
++    }
++    Logging.d(TAG, "Stop done");
++  }
++  private void reportError(String error) {
++    checkIsOnCameraThread();
++    Logging.e(TAG, "Error: " + error);
++    final boolean startFailure = (captureSession == null) && (state != SessionState.STOPPED);
++    state = SessionState.STOPPED;
++    stopInternal();
++    if (startFailure) {
++      callback.onFailure(FailureType.ERROR, error);
++    } else {
++      events.onCameraError(this, error);
++    }
++  }
++  private int getFrameOrientation() {
++    int rotation = CameraSession.getDeviceOrientation(applicationContext);
++    if (!isCameraFrontFacing) {
++      rotation = 360 - rotation;
++    }
++    return (cameraOrientation + rotation) % 360;
++  }
++  private void checkIsOnCameraThread() {
++    if (Thread.currentThread() != cameraThreadHandler.getLooper().getThread()) {
++      throw new IllegalStateException("Wrong thread");
++    }
++  }
++
++  @Override
++  public void toggleFlash() {
++    try {
++      if (!isFlashEnabled) {
++        captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
++        captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
++        isFlashEnabled = true;
++      } else {
++        captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
++        captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
++        isFlashEnabled = false;
++      }
++    } catch (CameraAccessException e) {
++      return;
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraCapturer.java b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraCapturer.java
+new file mode 100644
+index 0000000..175b697
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraCapturer.java
+@@ -0,0 +1,414 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++package org.webrtc;
++import android.content.Context;
++import android.os.Handler;
++import android.os.Looper;
++import androidx.annotation.Nullable;
++import java.util.Arrays;
++import java.util.List;
++@SuppressWarnings("deprecation")
++abstract class CameraCapturer implements CameraVideoCapturer {
++  enum SwitchState {
++    IDLE, // No switch requested.
++    PENDING, // Waiting for previous capture session to open.
++    IN_PROGRESS, // Waiting for new switched capture session to start.
++  }
++  private static final String TAG = "CameraCapturer";
++  private final static int MAX_OPEN_CAMERA_ATTEMPTS = 3;
++  private final static int OPEN_CAMERA_DELAY_MS = 500;
++  private final static int OPEN_CAMERA_TIMEOUT = 10000;
++  private final CameraEnumerator cameraEnumerator;
++  private final CameraEventsHandler eventsHandler;
++  private final Handler uiThreadHandler;
++  @Nullable
++  private final CameraSession.CreateSessionCallback createSessionCallback =
++      new CameraSession.CreateSessionCallback() {
++        @Override
++        public void onDone(CameraSession session) {
++          checkIsOnCameraThread();
++          Logging.d(TAG, "Create session done. Switch state: " + switchState);
++          uiThreadHandler.removeCallbacks(openCameraTimeoutRunnable);
++          synchronized (stateLock) {
++            capturerObserver.onCapturerStarted(true /* success */);
++            sessionOpening = false;
++            currentSession = session;
++            cameraStatistics = new CameraStatistics(surfaceHelper, eventsHandler);
++            firstFrameObserved = false;
++            stateLock.notifyAll();
++            if (switchState == SwitchState.IN_PROGRESS) {
++              switchState = SwitchState.IDLE;
++              if (switchEventsHandler != null) {
++                switchEventsHandler.onCameraSwitchDone(cameraEnumerator.isFrontFacing(cameraName));
++                switchEventsHandler = null;
++              }
++            } else if (switchState == SwitchState.PENDING) {
++              String selectedCameraName = pendingCameraName;
++              pendingCameraName = null;
++              switchState = SwitchState.IDLE;
++              switchCameraInternal(switchEventsHandler, selectedCameraName);
++            }
++          }
++        }
++        @Override
++        public void onFailure(CameraSession.FailureType failureType, String error) {
++          checkIsOnCameraThread();
++          uiThreadHandler.removeCallbacks(openCameraTimeoutRunnable);
++          synchronized (stateLock) {
++            capturerObserver.onCapturerStarted(false /* success */);
++            openAttemptsRemaining--;
++            if (openAttemptsRemaining <= 0) {
++              Logging.w(TAG, "Opening camera failed, passing: " + error);
++              sessionOpening = false;
++              stateLock.notifyAll();
++              if (switchState != SwitchState.IDLE) {
++                if (switchEventsHandler != null) {
++                  switchEventsHandler.onCameraSwitchError(error);
++                  switchEventsHandler = null;
++                }
++                switchState = SwitchState.IDLE;
++              }
++              if (failureType == CameraSession.FailureType.DISCONNECTED) {
++                eventsHandler.onCameraDisconnected();
++              } else {
++                eventsHandler.onCameraError(error);
++              }
++            } else {
++              Logging.w(TAG, "Opening camera failed, retry: " + error);
++              createSessionInternal(OPEN_CAMERA_DELAY_MS);
++            }
++          }
++        }
++      };
++  @Nullable
++  private final CameraSession.Events cameraSessionEventsHandler = new CameraSession.Events() {
++    @Override
++    public void onCameraOpening() {
++      checkIsOnCameraThread();
++      synchronized (stateLock) {
++        if (currentSession != null) {
++          Logging.w(TAG, "onCameraOpening while session was open.");
++          return;
++        }
++        eventsHandler.onCameraOpening(cameraName);
++      }
++    }
++    @Override
++    public void onCameraError(CameraSession session, String error) {
++      checkIsOnCameraThread();
++      synchronized (stateLock) {
++        if (session != currentSession) {
++          Logging.w(TAG, "onCameraError from another session: " + error);
++          return;
++        }
++        eventsHandler.onCameraError(error);
++        stopCapture();
++      }
++    }
++    @Override
++    public void onCameraDisconnected(CameraSession session) {
++      checkIsOnCameraThread();
++      synchronized (stateLock) {
++        if (session != currentSession) {
++          Logging.w(TAG, "onCameraDisconnected from another session.");
++          return;
++        }
++        eventsHandler.onCameraDisconnected();
++        stopCapture();
++      }
++    }
++    @Override
++    public void onCameraClosed(CameraSession session) {
++      checkIsOnCameraThread();
++      synchronized (stateLock) {
++        if (session != currentSession && currentSession != null) {
++          Logging.d(TAG, "onCameraClosed from another session.");
++          return;
++        }
++        eventsHandler.onCameraClosed();
++      }
++    }
++    @Override
++    public void onFrameCaptured(CameraSession session, VideoFrame frame) {
++      checkIsOnCameraThread();
++      synchronized (stateLock) {
++        if (session != currentSession) {
++          Logging.w(TAG, "onFrameCaptured from another session.");
++          return;
++        }
++        if (!firstFrameObserved) {
++          eventsHandler.onFirstFrameAvailable();
++          firstFrameObserved = true;
++        }
++        cameraStatistics.addFrame();
++        capturerObserver.onFrameCaptured(frame);
++      }
++    }
++  };
++  private final Runnable openCameraTimeoutRunnable = new Runnable() {
++    @Override
++    public void run() {
++      eventsHandler.onCameraError("Camera failed to start within timeout.");
++    }
++  };
++  // Initialized on initialize
++  // -------------------------
++  private Handler cameraThreadHandler;
++  private Context applicationContext;
++  private org.webrtc.CapturerObserver capturerObserver;
++  private SurfaceTextureHelper surfaceHelper;
++  private final Object stateLock = new Object();
++  private boolean sessionOpening; /* guarded by stateLock */
++  @Nullable private CameraSession currentSession; /* guarded by stateLock */
++  private String cameraName; /* guarded by stateLock */
++  private String pendingCameraName; /* guarded by stateLock */
++  private int width; /* guarded by stateLock */
++  private int height; /* guarded by stateLock */
++  private int framerate; /* guarded by stateLock */
++  private int openAttemptsRemaining; /* guarded by stateLock */
++  private SwitchState switchState = SwitchState.IDLE; /* guarded by stateLock */
++  @Nullable private CameraSwitchHandler switchEventsHandler; /* guarded by stateLock */
++  // Valid from onDone call until stopCapture, otherwise null.
++  @Nullable private CameraStatistics cameraStatistics; /* guarded by stateLock */
++  private boolean firstFrameObserved; /* guarded by stateLock */
++  public CameraCapturer(String cameraName, @Nullable CameraEventsHandler eventsHandler,
++      CameraEnumerator cameraEnumerator) {
++    if (eventsHandler == null) {
++      eventsHandler = new CameraEventsHandler() {
++        @Override
++        public void onCameraError(String errorDescription) {}
++        @Override
++        public void onCameraDisconnected() {}
++        @Override
++        public void onCameraFreezed(String errorDescription) {}
++        @Override
++        public void onCameraOpening(String cameraName) {}
++        @Override
++        public void onFirstFrameAvailable() {}
++        @Override
++        public void onCameraClosed() {}
++      };
++    }
++    this.eventsHandler = eventsHandler;
++    this.cameraEnumerator = cameraEnumerator;
++    this.cameraName = cameraName;
++    List<String> deviceNames = Arrays.asList(cameraEnumerator.getDeviceNames());
++    uiThreadHandler = new Handler(Looper.getMainLooper());
++    if (deviceNames.isEmpty()) {
++      throw new RuntimeException("No cameras attached.");
++    }
++    if (!deviceNames.contains(this.cameraName)) {
++      throw new IllegalArgumentException(
++          "Camera name " + this.cameraName + " does not match any known camera device.");
++    }
++  }
++  @Override
++  public void initialize(SurfaceTextureHelper surfaceTextureHelper, Context applicationContext,
++      org.webrtc.CapturerObserver capturerObserver) {
++    this.applicationContext = applicationContext;
++    this.capturerObserver = capturerObserver;
++    this.surfaceHelper = surfaceTextureHelper;
++    this.cameraThreadHandler = surfaceTextureHelper.getHandler();
++  }
++  @Override
++  public void startCapture(int width, int height, int framerate) {
++    Logging.d(TAG, "startCapture: " + width + "x" + height + "@" + framerate);
++    if (applicationContext == null) {
++      throw new RuntimeException("CameraCapturer must be initialized before calling startCapture.");
++    }
++    synchronized (stateLock) {
++      if (sessionOpening || currentSession != null) {
++        Logging.w(TAG, "Session already open");
++        return;
++      }
++      this.width = width;
++      this.height = height;
++      this.framerate = framerate;
++      sessionOpening = true;
++      openAttemptsRemaining = MAX_OPEN_CAMERA_ATTEMPTS;
++      createSessionInternal(0);
++    }
++  }
++  private void createSessionInternal(int delayMs) {
++    uiThreadHandler.postDelayed(openCameraTimeoutRunnable, delayMs + OPEN_CAMERA_TIMEOUT);
++    cameraThreadHandler.postDelayed(new Runnable() {
++      @Override
++      public void run() {
++        createCameraSession(createSessionCallback, cameraSessionEventsHandler, applicationContext,
++            surfaceHelper, cameraName, width, height, framerate);
++      }
++    }, delayMs);
++  }
++  @Override
++  public void stopCapture() {
++    Logging.d(TAG, "Stop capture");
++    synchronized (stateLock) {
++      while (sessionOpening) {
++        Logging.d(TAG, "Stop capture: Waiting for session to open");
++        try {
++          stateLock.wait();
++        } catch (InterruptedException e) {
++          Logging.w(TAG, "Stop capture interrupted while waiting for the session to open.");
++          Thread.currentThread().interrupt();
++          return;
++        }
++      }
++      if (currentSession != null) {
++        Logging.d(TAG, "Stop capture: Nulling session");
++        cameraStatistics.release();
++        cameraStatistics = null;
++        final CameraSession oldSession = currentSession;
++        cameraThreadHandler.post(new Runnable() {
++          @Override
++          public void run() {
++            oldSession.stop();
++          }
++        });
++        currentSession = null;
++        capturerObserver.onCapturerStopped();
++      } else {
++        Logging.d(TAG, "Stop capture: No session open");
++      }
++    }
++    Logging.d(TAG, "Stop capture done");
++  }
++  @Override
++  public void changeCaptureFormat(int width, int height, int framerate) {
++    Logging.d(TAG, "changeCaptureFormat: " + width + "x" + height + "@" + framerate);
++    synchronized (stateLock) {
++      stopCapture();
++      startCapture(width, height, framerate);
++    }
++  }
++  @Override
++  public void dispose() {
++    Logging.d(TAG, "dispose");
++    stopCapture();
++  }
++  @Override
++  public void switchCamera(final CameraSwitchHandler switchEventsHandler) {
++    Logging.d(TAG, "switchCamera");
++    cameraThreadHandler.post(new Runnable() {
++      @Override
++      public void run() {
++        List<String> deviceNames = Arrays.asList(cameraEnumerator.getDeviceNames());
++        if (deviceNames.size() < 2) {
++          reportCameraSwitchError("No camera to switch to.", switchEventsHandler);
++          return;
++        }
++        int cameraNameIndex = deviceNames.indexOf(cameraName);
++        String cameraName = deviceNames.get((cameraNameIndex + 1) % deviceNames.size());
++        switchCameraInternal(switchEventsHandler, cameraName);
++      }
++    });
++  }
++  @Override
++  public void switchCamera(final CameraSwitchHandler switchEventsHandler, final String cameraName) {
++    Logging.d(TAG, "switchCamera");
++    cameraThreadHandler.post(new Runnable() {
++      @Override
++      public void run() {
++        switchCameraInternal(switchEventsHandler, cameraName);
++      }
++    });
++  }
++  @Override
++  public boolean isScreencast() {
++    return false;
++  }
++  public void printStackTrace() {
++    Thread cameraThread = null;
++    if (cameraThreadHandler != null) {
++      cameraThread = cameraThreadHandler.getLooper().getThread();
++    }
++    if (cameraThread != null) {
++      StackTraceElement[] cameraStackTrace = cameraThread.getStackTrace();
++      if (cameraStackTrace.length > 0) {
++        Logging.d(TAG, "CameraCapturer stack trace:");
++        for (StackTraceElement traceElem : cameraStackTrace) {
++          Logging.d(TAG, traceElem.toString());
++        }
++      }
++    }
++  }
++  private void reportCameraSwitchError(
++      String error, @Nullable CameraSwitchHandler switchEventsHandler) {
++    Logging.e(TAG, error);
++    if (switchEventsHandler != null) {
++      switchEventsHandler.onCameraSwitchError(error);
++    }
++  }
++  private void switchCameraInternal(
++      @Nullable final CameraSwitchHandler switchEventsHandler, final String selectedCameraName) {
++    Logging.d(TAG, "switchCamera internal");
++    List<String> deviceNames = Arrays.asList(cameraEnumerator.getDeviceNames());
++    if (!deviceNames.contains(selectedCameraName)) {
++      reportCameraSwitchError("Attempted to switch to unknown camera device " + selectedCameraName,
++          switchEventsHandler);
++      return;
++    }
++    synchronized (stateLock) {
++      if (switchState != SwitchState.IDLE) {
++        reportCameraSwitchError("Camera switch already in progress.", switchEventsHandler);
++        return;
++      }
++      if (!sessionOpening && currentSession == null) {
++        reportCameraSwitchError("switchCamera: camera is not running.", switchEventsHandler);
++        return;
++      }
++      this.switchEventsHandler = switchEventsHandler;
++      if (sessionOpening) {
++        switchState = SwitchState.PENDING;
++        pendingCameraName = selectedCameraName;
++        return;
++      } else {
++        switchState = SwitchState.IN_PROGRESS;
++      }
++      Logging.d(TAG, "switchCamera: Stopping session");
++      cameraStatistics.release();
++      cameraStatistics = null;
++      final CameraSession oldSession = currentSession;
++      cameraThreadHandler.post(new Runnable() {
++        @Override
++        public void run() {
++          oldSession.stop();
++        }
++      });
++      currentSession = null;
++      cameraName = selectedCameraName;
++      sessionOpening = true;
++      openAttemptsRemaining = 1;
++      createSessionInternal(0);
++    }
++    Logging.d(TAG, "switchCamera done");
++  }
++  private void checkIsOnCameraThread() {
++    if (Thread.currentThread() != cameraThreadHandler.getLooper().getThread()) {
++      Logging.e(TAG, "Check is on camera thread failed.");
++      throw new RuntimeException("Not on camera thread.");
++    }
++  }
++  protected String getCameraName() {
++    synchronized (stateLock) {
++      return cameraName;
++    }
++  }
++  abstract protected void createCameraSession(
++      CameraSession.CreateSessionCallback createSessionCallback, CameraSession.Events events,
++      Context applicationContext, SurfaceTextureHelper surfaceTextureHelper, String cameraName,
++      int width, int height, int framerate);
++  
++  @Override
++  public void toggleFlash() {
++    if (currentSession != null) {
++      currentSession.toggleFlash();
++    }
++  }
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraSession.java b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraSession.java
+new file mode 100644
+index 0000000..aaf8d43
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraSession.java
+@@ -0,0 +1,65 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++package org.webrtc;
++import android.content.Context;
++import android.graphics.Matrix;
++import android.view.WindowManager;
++import android.view.Surface;
++interface CameraSession {
++  enum FailureType { ERROR, DISCONNECTED }
++  // Callbacks are fired on the camera thread.
++  interface CreateSessionCallback {
++    void onDone(CameraSession session);
++    void onFailure(FailureType failureType, String error);
++  }
++  // Events are fired on the camera thread.
++  interface Events {
++    void onCameraOpening();
++    void onCameraError(CameraSession session, String error);
++    void onCameraDisconnected(CameraSession session);
++    void onCameraClosed(CameraSession session);
++    void onFrameCaptured(CameraSession session, VideoFrame frame);
++  }
++  /**
++   * Stops the capture. Waits until no more calls to capture observer will be made.
++   * If waitCameraStop is true, also waits for the camera to stop.
++   */
++  void stop();
++  static int getDeviceOrientation(Context context) {
++    final WindowManager wm = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
++    switch (wm.getDefaultDisplay().getRotation()) {
++      case Surface.ROTATION_90:
++        return 90;
++      case Surface.ROTATION_180:
++        return 180;
++      case Surface.ROTATION_270:
++        return 270;
++      case Surface.ROTATION_0:
++      default:
++        return 0;
++    }
++  }
++  static VideoFrame.TextureBuffer createTextureBufferWithModifiedTransformMatrix(
++      TextureBufferImpl buffer, boolean mirror, int rotation) {
++    final Matrix transformMatrix = new Matrix();
++    // Perform mirror and rotation around (0.5, 0.5) since that is the center of the texture.
++    transformMatrix.preTranslate(/* dx= */ 0.5f, /* dy= */ 0.5f);
++    if (mirror) {
++      transformMatrix.preScale(/* sx= */ -1f, /* sy= */ 1f);
++    }
++    transformMatrix.preRotate(rotation);
++    transformMatrix.preTranslate(/* dx= */ -0.5f, /* dy= */ -0.5f);
++    // The width and height are not affected by rotation since Camera2Session has set them to the
++    // value they should be after undoing the rotation.
++    return buffer.applyTransformMatrix(transformMatrix, buffer.getWidth(), buffer.getHeight());
++  }
++
++  public void toggleFlash();
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraVideoCapturer.java b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraVideoCapturer.java
+new file mode 100644
+index 0000000..950aea9
+--- /dev/null
++++ b/node_modules/react-native-webrtc/android/src/main/java/org/webrtc/CameraVideoCapturer.java
+@@ -0,0 +1,152 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++package org.webrtc;
++import android.media.MediaRecorder;
++/**
++ * Base interface for camera1 and camera2 implementations. Extends VideoCapturer with a
++ * switchCamera() function. Also provides subinterfaces for handling camera events, and a helper
++ * class for detecting camera freezes.
++ */
++public interface CameraVideoCapturer extends VideoCapturer {
++  /**
++   * Camera events handler - can be used to be notifed about camera events. The callbacks are
++   * executed from an arbitrary thread.
++   */
++  public interface CameraEventsHandler {
++    // Camera error handler - invoked when camera can not be opened
++    // or any camera exception happens on camera thread.
++    void onCameraError(String errorDescription);
++    // Called when camera is disconnected.
++    void onCameraDisconnected();
++    // Invoked when camera stops receiving frames.
++    void onCameraFreezed(String errorDescription);
++    // Callback invoked when camera is opening.
++    void onCameraOpening(String cameraName);
++    // Callback invoked when first camera frame is available after camera is started.
++    void onFirstFrameAvailable();
++    // Callback invoked when camera is closed.
++    void onCameraClosed();
++  }
++  /**
++   * Camera switch handler - one of these functions are invoked with the result of switchCamera().
++   * The callback may be called on an arbitrary thread.
++   */
++  public interface CameraSwitchHandler {
++    // Invoked on success. `isFrontCamera` is true if the new camera is front facing.
++    void onCameraSwitchDone(boolean isFrontCamera);
++    // Invoked on failure, e.g. camera is stopped or only one camera available.
++    void onCameraSwitchError(String errorDescription);
++  }
++  /**
++   * Switch camera to the next valid camera id. This can only be called while the camera is running.
++   * This function can be called from any thread.
++   */
++  void switchCamera(CameraSwitchHandler switchEventsHandler);
++  /**
++   * Switch camera to the specified camera id. This can only be called while the camera is running.
++   * This function can be called from any thread.
++   */
++  void switchCamera(CameraSwitchHandler switchEventsHandler, String cameraName);
++  /**
++   * MediaRecorder add/remove handler - one of these functions are invoked with the result of
++   * addMediaRecorderToCamera() or removeMediaRecorderFromCamera calls.
++   * The callback may be called on an arbitrary thread.
++   */
++  @Deprecated
++  public interface MediaRecorderHandler {
++    // Invoked on success.
++    void onMediaRecorderSuccess();
++    // Invoked on failure, e.g. camera is stopped or any exception happens.
++    void onMediaRecorderError(String errorDescription);
++  }
++  /**
++   * Add MediaRecorder to camera pipeline. This can only be called while the camera is running.
++   * Once MediaRecorder is added to camera pipeline camera switch is not allowed.
++   * This function can be called from any thread.
++   */
++  @Deprecated
++  default void addMediaRecorderToCamera(
++      MediaRecorder mediaRecorder, MediaRecorderHandler resultHandler) {
++    throw new UnsupportedOperationException("Deprecated and not implemented.");
++  }
++  /**
++   * Remove MediaRecorder from camera pipeline. This can only be called while the camera is running.
++   * This function can be called from any thread.
++   */
++  @Deprecated
++  default void removeMediaRecorderFromCamera(MediaRecorderHandler resultHandler) {
++    throw new UnsupportedOperationException("Deprecated and not implemented.");
++  }
++  /**
++   * Helper class to log framerate and detect if the camera freezes. It will run periodic callbacks
++   * on the SurfaceTextureHelper thread passed in the ctor, and should only be operated from that
++   * thread.
++   */
++  public static class CameraStatistics {
++    private final static String TAG = "CameraStatistics";
++    private final static int CAMERA_OBSERVER_PERIOD_MS = 2000;
++    private final static int CAMERA_FREEZE_REPORT_TIMOUT_MS = 4000;
++    private final SurfaceTextureHelper surfaceTextureHelper;
++    private final CameraEventsHandler eventsHandler;
++    private int frameCount;
++    private int freezePeriodCount;
++    // Camera observer - monitors camera framerate. Observer is executed on camera thread.
++    private final Runnable cameraObserver = new Runnable() {
++      @Override
++      public void run() {
++        final int cameraFps = Math.round(frameCount * 1000.0f / CAMERA_OBSERVER_PERIOD_MS);
++        Logging.d(TAG, "Camera fps: " + cameraFps + ".");
++        if (frameCount == 0) {
++          ++freezePeriodCount;
++          if (CAMERA_OBSERVER_PERIOD_MS * freezePeriodCount >= CAMERA_FREEZE_REPORT_TIMOUT_MS
++              && eventsHandler != null) {
++            Logging.e(TAG, "Camera freezed.");
++            if (surfaceTextureHelper.isTextureInUse()) {
++              // This can only happen if we are capturing to textures.
++              eventsHandler.onCameraFreezed("Camera failure. Client must return video buffers.");
++            } else {
++              eventsHandler.onCameraFreezed("Camera failure.");
++            }
++            return;
++          }
++        } else {
++          freezePeriodCount = 0;
++        }
++        frameCount = 0;
++        surfaceTextureHelper.getHandler().postDelayed(this, CAMERA_OBSERVER_PERIOD_MS);
++      }
++    };
++    public CameraStatistics(
++        SurfaceTextureHelper surfaceTextureHelper, CameraEventsHandler eventsHandler) {
++      if (surfaceTextureHelper == null) {
++        throw new IllegalArgumentException("SurfaceTextureHelper is null");
++      }
++      this.surfaceTextureHelper = surfaceTextureHelper;
++      this.eventsHandler = eventsHandler;
++      this.frameCount = 0;
++      this.freezePeriodCount = 0;
++      surfaceTextureHelper.getHandler().postDelayed(cameraObserver, CAMERA_OBSERVER_PERIOD_MS);
++    }
++    private void checkThread() {
++      if (Thread.currentThread() != surfaceTextureHelper.getHandler().getLooper().getThread()) {
++        throw new IllegalStateException("Wrong thread");
++      }
++    }
++    public void addFrame() {
++      checkThread();
++      ++frameCount;
++    }
++    public void release() {
++      surfaceTextureHelper.getHandler().removeCallbacks(cameraObserver);
++    }
++  }
++
++  public void toggleFlash();
++}
+\ No newline at end of file
+diff --git a/node_modules/react-native-webrtc/lib/commonjs/MediaStreamTrack.js b/node_modules/react-native-webrtc/lib/commonjs/MediaStreamTrack.js
+index 3be63b4..a250643 100644
+--- a/node_modules/react-native-webrtc/lib/commonjs/MediaStreamTrack.js
++++ b/node_modules/react-native-webrtc/lib/commonjs/MediaStreamTrack.js
+@@ -120,6 +120,15 @@ class MediaStreamTrack extends (0, _eventTargetShim.defineCustomEventTarget)(...
+     WebRTCModule.mediaStreamTrackRelease(this.id);
+   }
+ 
++  toggleFlash() {
++    if (this.remote) {
++      throw new Error('Not implemented for remote tracks');
++    }
++    if (this.kind !== 'video') {
++      throw new Error('Only implemented for video tracks');
++    }
++    WebRTCModule.mediaStreamTrackTurnTourchOn(this.id);
++  }
+ }
+ 
+ var _default = MediaStreamTrack;
+diff --git a/node_modules/react-native-webrtc/lib/module/MediaStreamTrack.js b/node_modules/react-native-webrtc/lib/module/MediaStreamTrack.js
+index d4b5613..ba7733f 100644
+--- a/node_modules/react-native-webrtc/lib/module/MediaStreamTrack.js
++++ b/node_modules/react-native-webrtc/lib/module/MediaStreamTrack.js
+@@ -110,6 +110,15 @@ class MediaStreamTrack extends defineCustomEventTarget(...MEDIA_STREAM_TRACK_EVE
+     WebRTCModule.mediaStreamTrackRelease(this.id);
+   }
+ 
++  toggleFlash() {
++    if (this.remote) {
++      throw new Error('Not implemented for remote tracks');
++    }
++    if (this.kind !== 'video') {
++      throw new Error('Only implemented for video tracks');
++    }
++    WebRTCModule.mediaStreamTrackTurnTourchOn(this.id);
++  }
+ }
+ 
+ export default MediaStreamTrack;

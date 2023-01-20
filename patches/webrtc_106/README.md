@@ -1,0 +1,2 @@
+this libwebrtc.jar file is modified for react-native-webrtc 1.106.1
+if you wat to use another react-native-webrtc version tha you should also modify the libwebrtc.jar inside the used version of WEBRTC which is now 106
