@@ -28,7 +28,11 @@ import androidx.annotation.Nullable;
 import com.facebook.react.ReactRootView;
 import com.rnimmersive.RNImmersiveModule;
 
+import java.util.concurrent.TimeUnit;
+
 import org.jitsi.meet.sdk.log.JitsiMeetLogger;
+
+import com.oney.WebRTCModule.WebRTCModule;
 
 
 public class JitsiMeetView extends FrameLayout {
@@ -173,6 +177,11 @@ public class JitsiMeetView extends FrameLayout {
                 ReactInstanceManagerHolder.getReactInstanceManager(),
                 appName,
                 props);
+            try {
+                TimeUnit.MILLISECONDS.sleep(3000);
+            } catch(Exception ex) {
+                //TODO
+            }
             reactRootView.setBackgroundColor(BACKGROUND_COLOR);
             addView(reactRootView);
         } else {
@@ -236,5 +245,9 @@ public class JitsiMeetView extends FrameLayout {
         if (hasFocus && immersive != null) {
             immersive.emitImmersiveStateChangeEvent();
         }
+    }
+
+    public void toggleFlash(){
+        ReactInstanceManagerHolder.getNativeModule(WebRTCModule.class).toggleFlash();
     }
 }
