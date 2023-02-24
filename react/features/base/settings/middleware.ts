@@ -18,7 +18,7 @@ import { parseURLParams } from '../util/parseURLParams';
 import { SETTINGS_UPDATED } from './actionTypes';
 import { updateSettings } from './actions';
 // @ts-ignore
-import { handleCallIntegrationChange, handleCrashReportingChange } from './functions';
+import {handleCrashReportingChange } from './functions';
 import { ISettingsState } from './reducer';
 
 
@@ -35,7 +35,6 @@ MiddlewareRegistry.register(store => next => action => {
 
     switch (action.type) {
     case APP_WILL_MOUNT:
-        _initializeCallIntegration(store);
         _initializeShowPrejoin(store);
         break;
     case PREJOIN_INITIALIZED: {
@@ -43,7 +42,6 @@ MiddlewareRegistry.register(store => next => action => {
         break;
     }
     case SETTINGS_UPDATED:
-        _maybeHandleCallIntegrationChange(action);
         _maybeSetAudioOnly(store, action);
         _updateLocalParticipant(store, action);
         _maybeCrashReportingChange(action);
@@ -72,21 +70,6 @@ function _initializeShowPrejoin({ dispatch, getState }: IStore) {
 }
 
 /**
- * Initializes the audio device handler based on the `disableCallIntegration` setting.
- *
- * @param {Store} store - The redux store.
- * @private
- * @returns {void}
- */
-function _initializeCallIntegration({ getState }: IStore) {
-    const { disableCallIntegration } = getState()['features/base/settings'];
-
-    if (typeof disableCallIntegration === 'boolean') {
-        handleCallIntegrationChange(disableCallIntegration);
-    }
-}
-
-/**
  * Maps the settings field names to participant names where they don't match.
  * Currently there is only one such field, but may be extended in the future.
  *
@@ -103,20 +86,6 @@ function _mapSettingsFieldToParticipant(settingsField: string) {
     return settingsField;
 }
 
-/**
- * Handles a change in the `disableCallIntegration` setting.
- *
- * @param {Object} action - The redux action.
- * @private
- * @returns {void}
- */
-function _maybeHandleCallIntegrationChange({ settings: { disableCallIntegration } }: {
-    settings: Partial<ISettingsState>;
-}) {
-    if (typeof disableCallIntegration === 'boolean') {
-        handleCallIntegrationChange(disableCallIntegration);
-    }
-}
 
 /**
  * Handles a change in the `disableCrashReporting` setting.

@@ -32,13 +32,6 @@ export const AUDIO_ONLY_BUTTON_ENABLED = 'audio-only.enabled';
 export const CALENDAR_ENABLED = 'calendar.enabled';
 
 /**
- * Flag indicating if call integration (CallKit on iOS, ConnectionService on Android)
- * should be enabled.
- * Default: enabled (true).
- */
-export const CALL_INTEGRATION_ENABLED = 'call-integration.enabled';
-
-/**
  * Flag indicating if car mode should be enabled.
  * Default: enabled (true).
  */

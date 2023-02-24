@@ -54,11 +54,6 @@ const { AppInfo } = NativeModules;
 interface State {
 
     /**
-     * State variable for the disable call integration switch.
-     */
-    disableCallIntegration: boolean;
-
-    /**
      * State variable for the disable crash reporting switch.
      */
     disableCrashReporting: boolean;
@@ -133,7 +128,6 @@ interface Props extends WithTranslation {
      * The current settings object.
      */
     _settings: {
-        disableCallIntegration: boolean;
         disableCrashReporting: boolean;
         disableP2P: boolean;
         disableSelfView: boolean;
@@ -189,7 +183,6 @@ class SettingsView extends Component<Props, State> {
         super(props);
 
         const {
-            disableCallIntegration,
             disableCrashReporting,
             disableP2P,
             disableSelfView,
@@ -202,7 +195,6 @@ class SettingsView extends Component<Props, State> {
         } = props._settings || {};
 
         this.state = {
-            disableCallIntegration,
             disableCrashReporting,
             disableP2P,
             disableSelfView,
@@ -220,7 +212,6 @@ class SettingsView extends Component<Props, State> {
         this._onChangeEmail = this._onChangeEmail.bind(this);
         this._onChangeServerURL = this._onChangeServerURL.bind(this);
         this._onClose = this._onClose.bind(this);
-        this._onDisableCallIntegration = this._onDisableCallIntegration.bind(this);
         this._onDisableCrashReporting = this._onDisableCrashReporting.bind(this);
         this._onDisableP2P = this._onDisableP2P.bind(this);
         this._onDisableSelfView = this._onDisableSelfView.bind(this);
@@ -258,7 +249,6 @@ class SettingsView extends Component<Props, State> {
      */
     render() {
         const {
-            disableCallIntegration,
             disableCrashReporting,
             disableP2P,
             disableSelfView,
@@ -409,18 +399,6 @@ class SettingsView extends Component<Props, State> {
                     </FormSectionAccordion>
                     <FormSectionAccordion
                         label = 'settingsView.advanced'>
-                        { Platform.OS === 'android' && (
-                            <>
-                                <FormRow
-                                    label = 'settingsView.disableCallIntegration'>
-                                    <Switch
-                                        checked = { disableCallIntegration }
-                                        // @ts-ignore
-                                        onChange = { this._onDisableCallIntegration } />
-                                </FormRow>
-                                <Divider style = { styles.fieldSeparator } />
-                            </>
-                        )}
                         <FormRow
                             label = 'settingsView.disableP2P'>
                             <Switch
@@ -507,23 +485,6 @@ class SettingsView extends Component<Props, State> {
         });
     }
 
-    /**
-     * Handles the disable call integration change event.
-     *
-     * @param {boolean} disableCallIntegration - The new value
-     * option.
-     * @private
-     * @returns {void}
-     */
-    _onDisableCallIntegration(disableCallIntegration: boolean) {
-        this.setState({
-            disableCallIntegration
-        });
-
-        this._updateSettings({
-            disableCallIntegration
-        });
-    }
 
     /**
      * Handles the disable P2P change event.

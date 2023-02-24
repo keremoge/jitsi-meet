@@ -19,7 +19,6 @@ const DEFAULT_STATE: ISettingsState = {
     audioOutputDeviceId: undefined,
     avatarURL: undefined,
     cameraDeviceId: undefined,
-    disableCallIntegration: undefined,
     disableCrashReporting: undefined,
     disableP2P: undefined,
     disableSelfView: false,
@@ -57,7 +56,6 @@ export interface ISettingsState {
     audioSettingsVisible?: boolean;
     avatarURL?: string;
     cameraDeviceId?: string | boolean;
-    disableCallIntegration?: boolean;
     disableCrashReporting?: boolean;
     disableP2P?: boolean;
     disableSelfView?: boolean;

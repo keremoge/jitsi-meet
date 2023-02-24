@@ -5,7 +5,6 @@ import '../dynamic-branding/middleware';
 import '../gifs/middleware';
 import '../mobile/audio-mode/middleware';
 import '../mobile/background/middleware';
-import '../mobile/call-integration/middleware';
 import '../mobile/external-api/middleware';
 import '../mobile/full-screen/middleware';
 import '../mobile/navigation/middleware';

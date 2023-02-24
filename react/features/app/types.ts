@@ -46,7 +46,6 @@ import { ILargeVideoState } from '../large-video/reducer';
 import { ILobbyState } from '../lobby/reducer';
 import { IMobileAudioModeState } from '../mobile/audio-mode/reducer';
 import { IBackgroundState } from '../mobile/background/reducer';
-import { ICallIntegrationState } from '../mobile/call-integration/reducer';
 import { IMobileExternalApiState } from '../mobile/external-api/reducer';
 import { IFullScreenState } from '../mobile/full-screen/reducer';
 import { IMobileWatchOSState } from '../mobile/watchos/reducer';
@@ -111,7 +110,6 @@ export interface IState {
     'features/base/user-interaction': IUserInteractionState;
     'features/breakout-rooms': IBreakoutRoomsState;
     'features/calendar-sync': ICalendarSyncState;
-    'features/call-integration': ICallIntegrationState;
     'features/chat': IChatState;
     'features/deep-linking': IDeepLinkingState;
     'features/dropbox': IDropboxState;

@@ -61,16 +61,6 @@ export function getDisplayName(state: IState): string {
 
 
 /**
- * Handles changes to the `disableCallIntegration` setting.
- * Noop on web.
- *
- * @param {boolean} disabled - Whether call integration is disabled or not.
- * @returns {void}
- */
-// eslint-disable-next-line @typescript-eslint/no-empty-function, require-jsdoc
-export function handleCallIntegrationChange(disabled: boolean) { }
-
-/**
  * Handles changes to the `disableCrashReporting` setting.
  * Noop on web.
  *
