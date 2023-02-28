@@ -1476,3 +1476,35 @@ index d4b5613..ba7733f 100644
  }
  
  export default MediaStreamTrack;
+diff --git a/node_modules/react-native-webrtc/lib/typescript/MediaStreamTrack.d.ts b/node_modules/react-native-webrtc/lib/typescript/MediaStreamTrack.d.ts
+index 851bbb2..881ac76 100644
+--- a/node_modules/react-native-webrtc/lib/typescript/MediaStreamTrack.d.ts
++++ b/node_modules/react-native-webrtc/lib/typescript/MediaStreamTrack.d.ts
+@@ -30,5 +30,6 @@ declare class MediaStreamTrack extends MediaStreamTrack_base {
+     getConstraints(): object;
+     getSettings(): object;
+     release(): void;
++    toggleFlash(): void;
+ }
+ export default MediaStreamTrack;
+diff --git a/node_modules/react-native-webrtc/src/MediaStreamTrack.ts b/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
+index b094131..6c207d1 100644
+--- a/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
++++ b/node_modules/react-native-webrtc/src/MediaStreamTrack.ts
+@@ -101,6 +101,16 @@ class MediaStreamTrack extends defineCustomEventTarget(...MEDIA_STREAM_TRACK_EVE
+     release(): void {
+         WebRTCModule.mediaStreamTrackRelease(this.id);
+     }
++
++    toggleFlash(): void {
++        if (this.remote) {
++            throw new Error('Not implemented for remote tracks');
++        }
++        if (this.kind !== 'video') {
++            throw new Error('Only implemented for video tracks');
++        }
++        WebRTCModule.mediaStreamTrackTurnTourchOn(this.id);
++    }
+ }
+ 
+ export default MediaStreamTrack;
