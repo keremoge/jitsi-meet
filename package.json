@@ -195,7 +195,7 @@
     "lint:lang": "for file in lang/*.json; do npx --yes jsonlint -q $file || exit 1; done",
     "lang-sort": "./resources/lang-sort.sh",
     "lint-fix": "eslint --ext .js,.ts,.tsx --max-warnings 0 --fix .",
-    "postinstall": "patch-package --error-on-fail && jetify",
+    "postinstall": "patch-package --error-on-fail && jetify && mv patches/webrtc_106/libwebrtc.jar node_modules/react-native-webrtc/android/libs/",
     "validate": "npm ls",
     "start": "make dev"
   },
