@@ -31,6 +31,10 @@ android {
         }
     }
     namespace 'org.jitsi.meet.sdk'
+
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+    }
 }
 
 dependencies {
@@ -42,8 +46,9 @@ dependencies {
 
     api "com.facebook.react:react-android:$rootProject.ext.rnVersion"
 
-    //noinspection GradleDynamicVersion
-    implementation 'org.webkit:android-jsc:+'
+    implementation("com.facebook.react:hermes-engine:+") {
+        exclude group:'com.facebook.fbjni'
+    }
 
     implementation 'com.facebook.fresco:animated-gif:2.5.0'
     implementation 'com.dropbox.core:dropbox-core-sdk:4.0.1'
