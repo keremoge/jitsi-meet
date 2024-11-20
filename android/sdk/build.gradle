@@ -46,8 +46,8 @@ dependencies {
 
     api "com.facebook.react:react-android:$rootProject.ext.rnVersion"
 
-    implementation("com.facebook.react:hermes-engine:+") {
-        exclude group:'com.facebook.fbjni'
+    implementation("com.facebook.react:hermes-android:$rootProject.ext.rnVersion") {
+        //exclude group:'com.facebook.fbjni'
     }
 
     implementation 'com.facebook.fresco:animated-gif:2.5.0'
