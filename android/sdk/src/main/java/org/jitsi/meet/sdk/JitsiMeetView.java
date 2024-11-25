@@ -27,6 +27,8 @@ import androidx.annotation.Nullable;
 
 import com.facebook.react.ReactRootView;
 
+import java.util.concurrent.TimeUnit;
+
 import org.jitsi.meet.sdk.log.JitsiMeetLogger;
 
 
@@ -178,10 +180,20 @@ public class JitsiMeetView extends FrameLayout {
 
         if (reactRootView == null) {
             reactRootView = new ReactRootView(getContext());
+            try {
+                TimeUnit.MILLISECONDS.sleep(500);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }   
             reactRootView.startReactApplication(
                 ReactInstanceManagerHolder.getReactInstanceManager(),
                 appName,
                 props);
+            try {
+                TimeUnit.MILLISECONDS.sleep(2500);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }    
             reactRootView.setBackgroundColor(BACKGROUND_COLOR);
             addView(reactRootView);
         } else {
