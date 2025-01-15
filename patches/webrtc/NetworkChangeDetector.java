@@ -1,102 +1,122 @@
+/*
+ *  Copyright 2020 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 import androidx.annotation.Nullable;
 import java.util.List;
 
+/** Interface for detecting network changes */
 public interface NetworkChangeDetector {
-   NetworkChangeDetector.ConnectionType getCurrentConnectionType();
+  // java equivalent of c++ android_network_monitor.h / NetworkType.
+  public static enum ConnectionType {
+    CONNECTION_UNKNOWN,
+    CONNECTION_ETHERNET,
+    CONNECTION_WIFI,
+    CONNECTION_5G,
+    CONNECTION_4G,
+    CONNECTION_3G,
+    CONNECTION_2G,
+    CONNECTION_UNKNOWN_CELLULAR,
+    CONNECTION_BLUETOOTH,
+    CONNECTION_VPN,
+    CONNECTION_NONE
+  }
 
-   boolean supportNetworkCallback();
+  public static class IPAddress {
+    public final byte[] address;
 
-   @Nullable
-   List<NetworkChangeDetector.NetworkInformation> getActiveNetworkList();
+    public IPAddress(byte[] address) {
+      this.address = address;
+    }
 
-   void destroy();
+    @CalledByNative("IPAddress")
+    private byte[] getAddress() {
+      return address;
+    }
+  }
 
-   public abstract static class Observer {
-      public abstract void onConnectionTypeChanged(NetworkChangeDetector.ConnectionType var1);
+  /** Java version of NetworkMonitor.NetworkInformation */
+  public static class NetworkInformation {
+    public final String name;
+    public final ConnectionType type;
+    // Used to specify the underlying network type if the type is CONNECTION_VPN.
+    public final ConnectionType underlyingTypeForVpn;
+    public final long handle;
+    public final IPAddress[] ipAddresses;
 
-      public abstract void onNetworkConnect(NetworkChangeDetector.NetworkInformation var1);
+    public NetworkInformation(String name, ConnectionType type, ConnectionType underlyingTypeForVpn,
+        long handle, IPAddress[] addresses) {
+      this.name = name;
+      this.type = type;
+      this.underlyingTypeForVpn = underlyingTypeForVpn;
+      this.handle = handle;
+      this.ipAddresses = addresses;
+    }
 
-      public abstract void onNetworkDisconnect(long var1);
+    @CalledByNative("NetworkInformation")
+    private IPAddress[] getIpAddresses() {
+      return ipAddresses;
+    }
 
-      public abstract void onNetworkPreference(List<NetworkChangeDetector.ConnectionType> var1, int var2);
+    @CalledByNative("NetworkInformation")
+    private ConnectionType getConnectionType() {
+      return type;
+    }
 
-      public String getFieldTrialsString() {
-         return "";
-      }
-   }
+    @CalledByNative("NetworkInformation")
+    private ConnectionType getUnderlyingConnectionTypeForVpn() {
+      return underlyingTypeForVpn;
+    }
 
-   public static class NetworkInformation {
-      public final String name;
-      public final NetworkChangeDetector.ConnectionType type;
-      public final NetworkChangeDetector.ConnectionType underlyingTypeForVpn;
-      public final long handle;
-      public final NetworkChangeDetector.IPAddress[] ipAddresses;
+    @CalledByNative("NetworkInformation")
+    private long getHandle() {
+      return handle;
+    }
 
-      public NetworkInformation(String name, NetworkChangeDetector.ConnectionType type, NetworkChangeDetector.ConnectionType underlyingTypeForVpn, long handle, NetworkChangeDetector.IPAddress[] addresses) {
-         this.name = name;
-         this.type = type;
-         this.underlyingTypeForVpn = underlyingTypeForVpn;
-         this.handle = handle;
-         this.ipAddresses = addresses;
-      }
+    @CalledByNative("NetworkInformation")
+    private String getName() {
+      return name;
+    }
+  };
 
-      @CalledByNative("NetworkInformation")
-      private NetworkChangeDetector.IPAddress[] getIpAddresses() {
-         return this.ipAddresses;
-      }
+  /** Observer interface by which observer is notified of network changes. */
+  public static abstract class Observer {
+    /** Called when default network changes. */
+    public abstract void onConnectionTypeChanged(ConnectionType newConnectionType);
 
-      @CalledByNative("NetworkInformation")
-      private NetworkChangeDetector.ConnectionType getConnectionType() {
-         return this.type;
-      }
+    public abstract void onNetworkConnect(NetworkInformation networkInfo);
 
-      @CalledByNative("NetworkInformation")
-      private NetworkChangeDetector.ConnectionType getUnderlyingConnectionTypeForVpn() {
-         return this.underlyingTypeForVpn;
-      }
+    public abstract void onNetworkDisconnect(long networkHandle);
 
-      @CalledByNative("NetworkInformation")
-      private long getHandle() {
-         return this.handle;
-      }
+    /**
+     * Called when network preference change for a (list of) connection type(s). (e.g WIFI) is
+     * `NOT_PREFERRED` or `NEUTRAL`.
+     *
+     * <p>note: `types` is a list of ConnectionTypes, so that all cellular types can be modified in
+     * one call.
+     */
+    public abstract void onNetworkPreference(
+        List<ConnectionType> types, @NetworkPreference int preference);
 
-      @CalledByNative("NetworkInformation")
-      private String getName() {
-         return this.name;
-      }
-   }
+    // Add default impl. for down-stream tests.
+    public String getFieldTrialsString() {
+      return "";
+    }
+  }
 
-   public static class IPAddress {
-      public final byte[] address;
+  public ConnectionType getCurrentConnectionType();
 
-      public IPAddress(byte[] address) {
-         this.address = address;
-      }
+  public boolean supportNetworkCallback();
 
-      @CalledByNative("IPAddress")
-      private byte[] getAddress() {
-         return this.address;
-      }
-   }
+  @Nullable public List<NetworkInformation> getActiveNetworkList();
 
-   public static enum ConnectionType {
-      CONNECTION_UNKNOWN,
-      CONNECTION_ETHERNET,
-      CONNECTION_WIFI,
-      CONNECTION_5G,
-      CONNECTION_4G,
-      CONNECTION_3G,
-      CONNECTION_2G,
-      CONNECTION_UNKNOWN_CELLULAR,
-      CONNECTION_BLUETOOTH,
-      CONNECTION_VPN,
-      CONNECTION_NONE;
-
-      // $FF: synthetic method
-      private static NetworkChangeDetector.ConnectionType[] $values() {
-         return new NetworkChangeDetector.ConnectionType[]{CONNECTION_UNKNOWN, CONNECTION_ETHERNET, CONNECTION_WIFI, CONNECTION_5G, CONNECTION_4G, CONNECTION_3G, CONNECTION_2G, CONNECTION_UNKNOWN_CELLULAR, CONNECTION_BLUETOOTH, CONNECTION_VPN, CONNECTION_NONE};
-      }
-   }
+  public void destroy();
 }

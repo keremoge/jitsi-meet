@@ -1,4 +1,16 @@
+/*
+ *  Copyright 2015 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
+
+import static java.lang.Math.abs;
 
 import android.graphics.ImageFormat;
 import java.util.ArrayList;
@@ -7,125 +19,188 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+@SuppressWarnings("deprecation")
 public class CameraEnumerationAndroid {
-   private static final String TAG = "CameraEnumerationAndroid";
-   static final ArrayList<Size> COMMON_RESOLUTIONS = new ArrayList(Arrays.asList(new Size(160, 120), new Size(240, 160), new Size(320, 240), new Size(400, 240), new Size(480, 320), new Size(640, 360), new Size(640, 480), new Size(768, 480), new Size(854, 480), new Size(800, 600), new Size(960, 540), new Size(960, 640), new Size(1024, 576), new Size(1024, 600), new Size(1280, 720), new Size(1280, 1024), new Size(1920, 1080), new Size(1920, 1440), new Size(2560, 1440), new Size(3840, 2160)));
+  private final static String TAG = "CameraEnumerationAndroid";
 
-   public static CameraEnumerationAndroid.CaptureFormat.FramerateRange getClosestSupportedFramerateRange(List<CameraEnumerationAndroid.CaptureFormat.FramerateRange> supportedFramerates, final int requestedFps) {
-      return (CameraEnumerationAndroid.CaptureFormat.FramerateRange)Collections.min(supportedFramerates, new CameraEnumerationAndroid.ClosestComparator<CameraEnumerationAndroid.CaptureFormat.FramerateRange>() {
-         private static final int MAX_FPS_DIFF_THRESHOLD = 5000;
-         private static final int MAX_FPS_LOW_DIFF_WEIGHT = 1;
-         private static final int MAX_FPS_HIGH_DIFF_WEIGHT = 3;
-         private static final int MIN_FPS_THRESHOLD = 8000;
-         private static final int MIN_FPS_LOW_VALUE_WEIGHT = 1;
-         private static final int MIN_FPS_HIGH_VALUE_WEIGHT = 4;
+  static final ArrayList<Size> COMMON_RESOLUTIONS = new ArrayList<Size>(Arrays.asList(
+      // 0, Unknown resolution
+      new Size(160, 120), // 1, QQVGA
+      new Size(240, 160), // 2, HQVGA
+      new Size(320, 240), // 3, QVGA
+      new Size(400, 240), // 4, WQVGA
+      new Size(480, 320), // 5, HVGA
+      new Size(640, 360), // 6, nHD
+      new Size(640, 480), // 7, VGA
+      new Size(768, 480), // 8, WVGA
+      new Size(854, 480), // 9, FWVGA
+      new Size(800, 600), // 10, SVGA
+      new Size(960, 540), // 11, qHD
+      new Size(960, 640), // 12, DVGA
+      new Size(1024, 576), // 13, WSVGA
+      new Size(1024, 600), // 14, WVSGA
+      new Size(1280, 720), // 15, HD
+      new Size(1280, 1024), // 16, SXGA
+      new Size(1920, 1080), // 17, Full HD
+      new Size(1920, 1440), // 18, Full HD 4:3
+      new Size(2560, 1440), // 19, QHD
+      new Size(3840, 2160) // 20, UHD
+      ));
 
-         private int progressivePenalty(int value, int threshold, int lowWeight, int highWeight) {
-            return value < threshold ? value * lowWeight : threshold * lowWeight + (value - threshold) * highWeight;
-         }
+  public static class CaptureFormat {
+    // Class to represent a framerate range. The framerate varies because of lightning conditions.
+    // The values are multiplied by 1000, so 1000 represents one frame per second.
+    public static class FramerateRange {
+      public int min;
+      public int max;
 
-         int diff(CameraEnumerationAndroid.CaptureFormat.FramerateRange range) {
-            int minFpsError = this.progressivePenalty(range.min, 8000, 1, 4);
-            int maxFpsError = this.progressivePenalty(Math.abs(requestedFps * 1000 - range.max), 5000, 1, 3);
-            return minFpsError + maxFpsError;
-         }
-      });
-   }
-
-   public static Size getClosestSupportedSize(List<Size> supportedSizes, final int requestedWidth, final int requestedHeight) {
-      return (Size)Collections.min(supportedSizes, new CameraEnumerationAndroid.ClosestComparator<Size>() {
-         int diff(Size size) {
-            return Math.abs(requestedWidth - size.width) + Math.abs(requestedHeight - size.height);
-         }
-      });
-   }
-
-   static void reportCameraResolution(Histogram histogram, Size resolution) {
-      int index = COMMON_RESOLUTIONS.indexOf(resolution);
-      histogram.addSample(index + 1);
-   }
-
-   public static class CaptureFormat {
-      public final int width;
-      public final int height;
-      public final CameraEnumerationAndroid.CaptureFormat.FramerateRange framerate;
-      public final int imageFormat = 17;
-
-      public CaptureFormat(int width, int height, int minFramerate, int maxFramerate) {
-         this.width = width;
-         this.height = height;
-         this.framerate = new CameraEnumerationAndroid.CaptureFormat.FramerateRange(minFramerate, maxFramerate);
+      public FramerateRange(int min, int max) {
+        this.min = min;
+        this.max = max;
       }
 
-      public CaptureFormat(int width, int height, CameraEnumerationAndroid.CaptureFormat.FramerateRange framerate) {
-         this.width = width;
-         this.height = height;
-         this.framerate = framerate;
-      }
-
-      public int frameSize() {
-         return frameSize(this.width, this.height, 17);
-      }
-
-      public static int frameSize(int width, int height, int imageFormat) {
-         if (imageFormat != 17) {
-            throw new UnsupportedOperationException("Don't know how to calculate the frame size of non-NV21 image formats.");
-         } else {
-            return width * height * ImageFormat.getBitsPerPixel(imageFormat) / 8;
-         }
-      }
-
+      @Override
       public String toString() {
-         return this.width + "x" + this.height + "@" + this.framerate;
+        return "[" + (min / 1000.0f) + ":" + (max / 1000.0f) + "]";
       }
 
+      @Override
       public boolean equals(Object other) {
-         if (!(other instanceof CameraEnumerationAndroid.CaptureFormat)) {
-            return false;
-         } else {
-            CameraEnumerationAndroid.CaptureFormat otherFormat = (CameraEnumerationAndroid.CaptureFormat)other;
-            return this.width == otherFormat.width && this.height == otherFormat.height && this.framerate.equals(otherFormat.framerate);
-         }
+        if (!(other instanceof FramerateRange)) {
+          return false;
+        }
+        final FramerateRange otherFramerate = (FramerateRange) other;
+        return min == otherFramerate.min && max == otherFramerate.max;
       }
 
+      @Override
       public int hashCode() {
-         return 1 + (this.width * '\uffd9' + this.height) * 251 + this.framerate.hashCode();
+        // Use prime close to 2^16 to avoid collisions for normal values less than 2^16.
+        return 1 + 65537 * min + max;
       }
+    }
 
-      public static class FramerateRange {
-         public int min;
-         public int max;
+    public final int width;
+    public final int height;
+    public final FramerateRange framerate;
 
-         public FramerateRange(int min, int max) {
-            this.min = min;
-            this.max = max;
-         }
+    // TODO(hbos): If VideoCapturer.startCapture is updated to support other image formats then this
+    // needs to be updated and VideoCapturer.getSupportedFormats need to return CaptureFormats of
+    // all imageFormats.
+    public final int imageFormat = ImageFormat.NV21;
 
-         public String toString() {
-            float var10000 = (float)this.min / 1000.0F;
-            return "[" + var10000 + ":" + (float)this.max / 1000.0F + "]";
-         }
+    public CaptureFormat(int width, int height, int minFramerate, int maxFramerate) {
+      this.width = width;
+      this.height = height;
+      this.framerate = new FramerateRange(minFramerate, maxFramerate);
+    }
 
-         public boolean equals(Object other) {
-            if (!(other instanceof CameraEnumerationAndroid.CaptureFormat.FramerateRange)) {
-               return false;
-            } else {
-               CameraEnumerationAndroid.CaptureFormat.FramerateRange otherFramerate = (CameraEnumerationAndroid.CaptureFormat.FramerateRange)other;
-               return this.min == otherFramerate.min && this.max == otherFramerate.max;
-            }
-         }
+    public CaptureFormat(int width, int height, FramerateRange framerate) {
+      this.width = width;
+      this.height = height;
+      this.framerate = framerate;
+    }
 
-         public int hashCode() {
-            return 1 + 65537 * this.min + this.max;
-         }
+    // Calculates the frame size of this capture format.
+    public int frameSize() {
+      return frameSize(width, height, imageFormat);
+    }
+
+    // Calculates the frame size of the specified image format. Currently only
+    // supporting ImageFormat.NV21.
+    // The size is width * height * number of bytes per pixel.
+    // http://developer.android.com/reference/android/hardware/Camera.html#addCallbackBuffer(byte[])
+    public static int frameSize(int width, int height, int imageFormat) {
+      if (imageFormat != ImageFormat.NV21) {
+        throw new UnsupportedOperationException("Don't know how to calculate "
+            + "the frame size of non-NV21 image formats.");
       }
-   }
+      return (width * height * ImageFormat.getBitsPerPixel(imageFormat)) / 8;
+    }
 
-   private abstract static class ClosestComparator<T> implements Comparator<T> {
-      abstract int diff(T var1);
+    @Override
+    public String toString() {
+      return width + "x" + height + "@" + framerate;
+    }
 
-      public int compare(T t1, T t2) {
-         return this.diff(t1) - this.diff(t2);
+    @Override
+    public boolean equals(Object other) {
+      if (!(other instanceof CaptureFormat)) {
+        return false;
       }
-   }
+      final CaptureFormat otherFormat = (CaptureFormat) other;
+      return width == otherFormat.width && height == otherFormat.height
+          && framerate.equals(otherFormat.framerate);
+    }
+
+    @Override
+    public int hashCode() {
+      return 1 + (width * 65497 + height) * 251 + framerate.hashCode();
+    }
+  }
+
+  // Helper class for finding the closest supported format for the two functions below. It creates a
+  // comparator based on the difference to some requested parameters, where the element with the
+  // minimum difference is the element that is closest to the requested parameters.
+  private static abstract class ClosestComparator<T> implements Comparator<T> {
+    // Difference between supported and requested parameter.
+    abstract int diff(T supportedParameter);
+
+    @Override
+    public int compare(T t1, T t2) {
+      return diff(t1) - diff(t2);
+    }
+  }
+
+  // Prefer a fps range with an upper bound close to `framerate`. Also prefer a fps range with a low
+  // lower bound, to allow the framerate to fluctuate based on lightning conditions.
+  public static CaptureFormat.FramerateRange getClosestSupportedFramerateRange(
+      List<CaptureFormat.FramerateRange> supportedFramerates, final int requestedFps) {
+    return Collections.min(
+        supportedFramerates, new ClosestComparator<CaptureFormat.FramerateRange>() {
+          // Progressive penalty if the upper bound is further away than `MAX_FPS_DIFF_THRESHOLD`
+          // from requested.
+          private static final int MAX_FPS_DIFF_THRESHOLD = 5000;
+          private static final int MAX_FPS_LOW_DIFF_WEIGHT = 1;
+          private static final int MAX_FPS_HIGH_DIFF_WEIGHT = 3;
+
+          // Progressive penalty if the lower bound is bigger than `MIN_FPS_THRESHOLD`.
+          private static final int MIN_FPS_THRESHOLD = 8000;
+          private static final int MIN_FPS_LOW_VALUE_WEIGHT = 1;
+          private static final int MIN_FPS_HIGH_VALUE_WEIGHT = 4;
+
+          // Use one weight for small `value` less than `threshold`, and another weight above.
+          private int progressivePenalty(int value, int threshold, int lowWeight, int highWeight) {
+            return (value < threshold) ? value * lowWeight
+                                       : threshold * lowWeight + (value - threshold) * highWeight;
+          }
+
+          @Override
+          int diff(CaptureFormat.FramerateRange range) {
+            final int minFpsError = progressivePenalty(
+                range.min, MIN_FPS_THRESHOLD, MIN_FPS_LOW_VALUE_WEIGHT, MIN_FPS_HIGH_VALUE_WEIGHT);
+            final int maxFpsError = progressivePenalty(Math.abs(requestedFps * 1000 - range.max),
+                MAX_FPS_DIFF_THRESHOLD, MAX_FPS_LOW_DIFF_WEIGHT, MAX_FPS_HIGH_DIFF_WEIGHT);
+            return minFpsError + maxFpsError;
+          }
+        });
+  }
+
+  public static Size getClosestSupportedSize(
+      List<Size> supportedSizes, final int requestedWidth, final int requestedHeight) {
+    return Collections.min(supportedSizes, new ClosestComparator<Size>() {
+      @Override
+      int diff(Size size) {
+        return abs(requestedWidth - size.width) + abs(requestedHeight - size.height);
+      }
+    });
+  }
+
+  // Helper method for camera classes.
+  static void reportCameraResolution(Histogram histogram, Size resolution) {
+    int index = COMMON_RESOLUTIONS.indexOf(resolution);
+    // 0 is reserved for unknown resolution, so add 1.
+    // indexOf returns -1 for unknown resolutions so it becomes 0 automatically.
+    histogram.addSample(index + 1);
+  }
 }

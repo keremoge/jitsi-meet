@@ -1,117 +1,172 @@
+/*
+ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 import android.media.MediaRecorder;
 
+/**
+ * Base interface for camera1 and camera2 implementations. Extends VideoCapturer with a
+ * switchCamera() function. Also provides subinterfaces for handling camera events, and a helper
+ * class for detecting camera freezes.
+ */
 public interface CameraVideoCapturer extends VideoCapturer {
-   void switchCamera(CameraVideoCapturer.CameraSwitchHandler var1);
+  /**
+   * Camera events handler - can be used to be notifed about camera events. The callbacks are
+   * executed from an arbitrary thread.
+   */
+  public interface CameraEventsHandler {
+    // Camera error handler - invoked when camera can not be opened
+    // or any camera exception happens on camera thread.
+    void onCameraError(String errorDescription);
 
-   void switchCamera(CameraVideoCapturer.CameraSwitchHandler var1, String var2);
+    // Called when camera is disconnected.
+    void onCameraDisconnected();
 
-   /** @deprecated */
-   @Deprecated
-   default void addMediaRecorderToCamera(MediaRecorder mediaRecorder, CameraVideoCapturer.MediaRecorderHandler resultHandler) {
-      throw new UnsupportedOperationException("Deprecated and not implemented.");
-   }
+    // Invoked when camera stops receiving frames.
+    void onCameraFreezed(String errorDescription);
 
-   /** @deprecated */
-   @Deprecated
-   default void removeMediaRecorderFromCamera(CameraVideoCapturer.MediaRecorderHandler resultHandler) {
-      throw new UnsupportedOperationException("Deprecated and not implemented.");
-   }
+    // Callback invoked when camera is opening.
+    void onCameraOpening(String cameraName);
 
-   public static class CameraStatistics {
-      private static final String TAG = "CameraStatistics";
-      private static final int CAMERA_OBSERVER_PERIOD_MS = 2000;
-      private static final int CAMERA_FREEZE_REPORT_TIMOUT_MS = 4000;
-      private final SurfaceTextureHelper surfaceTextureHelper;
-      private final CameraVideoCapturer.CameraEventsHandler eventsHandler;
-      private int frameCount;
-      private int freezePeriodCount;
-      private final Runnable cameraObserver = new Runnable() {
-         // $FF: synthetic field
-         final CameraVideoCapturer.CameraStatistics this$0;
+    // Callback invoked when first camera frame is available after camera is started.
+    void onFirstFrameAvailable();
 
-         {
-            this.this$0 = this$0;
-         }
+    // Callback invoked when camera is closed.
+    void onCameraClosed();
+  }
 
-         public void run() {
-            int cameraFps = Math.round((float)this.this$0.frameCount * 1000.0F / 2000.0F);
-            Logging.d("CameraStatistics", "Camera fps: " + cameraFps + ".");
-            if (this.this$0.frameCount == 0) {
-               ++this.this$0.freezePeriodCount;
-               if (2000 * this.this$0.freezePeriodCount >= 4000 && this.this$0.eventsHandler != null) {
-                  Logging.e("CameraStatistics", "Camera freezed.");
-                  if (this.this$0.surfaceTextureHelper.isTextureInUse()) {
-                     this.this$0.eventsHandler.onCameraFreezed("Camera failure. Client must return video buffers.");
-                  } else {
-                     this.this$0.eventsHandler.onCameraFreezed("Camera failure.");
-                  }
+  /**
+   * Camera switch handler - one of these functions are invoked with the result of switchCamera().
+   * The callback may be called on an arbitrary thread.
+   */
+  public interface CameraSwitchHandler {
+    // Invoked on success. `isFrontCamera` is true if the new camera is front facing.
+    void onCameraSwitchDone(boolean isFrontCamera);
 
-                  return;
-               }
+    // Invoked on failure, e.g. camera is stopped or only one camera available.
+    void onCameraSwitchError(String errorDescription);
+  }
+
+  /**
+   * Switch camera to the next valid camera id. This can only be called while the camera is running.
+   * This function can be called from any thread.
+   */
+  void switchCamera(CameraSwitchHandler switchEventsHandler);
+
+  /**
+   * Switch camera to the specified camera id. This can only be called while the camera is running.
+   * This function can be called from any thread.
+   */
+  void switchCamera(CameraSwitchHandler switchEventsHandler, String cameraName);
+
+  /**
+   * MediaRecorder add/remove handler - one of these functions are invoked with the result of
+   * addMediaRecorderToCamera() or removeMediaRecorderFromCamera calls.
+   * The callback may be called on an arbitrary thread.
+   */
+  @Deprecated
+  public interface MediaRecorderHandler {
+    // Invoked on success.
+    void onMediaRecorderSuccess();
+
+    // Invoked on failure, e.g. camera is stopped or any exception happens.
+    void onMediaRecorderError(String errorDescription);
+  }
+
+  /**
+   * Add MediaRecorder to camera pipeline. This can only be called while the camera is running.
+   * Once MediaRecorder is added to camera pipeline camera switch is not allowed.
+   * This function can be called from any thread.
+   */
+  @Deprecated
+  default void addMediaRecorderToCamera(
+      MediaRecorder mediaRecorder, MediaRecorderHandler resultHandler) {
+    throw new UnsupportedOperationException("Deprecated and not implemented.");
+  }
+
+  /**
+   * Remove MediaRecorder from camera pipeline. This can only be called while the camera is running.
+   * This function can be called from any thread.
+   */
+  @Deprecated
+  default void removeMediaRecorderFromCamera(MediaRecorderHandler resultHandler) {
+    throw new UnsupportedOperationException("Deprecated and not implemented.");
+  }
+
+  /**
+   * Helper class to log framerate and detect if the camera freezes. It will run periodic callbacks
+   * on the SurfaceTextureHelper thread passed in the ctor, and should only be operated from that
+   * thread.
+   */
+  public static class CameraStatistics {
+    private final static String TAG = "CameraStatistics";
+    private final static int CAMERA_OBSERVER_PERIOD_MS = 2000;
+    private final static int CAMERA_FREEZE_REPORT_TIMOUT_MS = 4000;
+
+    private final SurfaceTextureHelper surfaceTextureHelper;
+    private final CameraEventsHandler eventsHandler;
+    private int frameCount;
+    private int freezePeriodCount;
+    // Camera observer - monitors camera framerate. Observer is executed on camera thread.
+    private final Runnable cameraObserver = new Runnable() {
+      @Override
+      public void run() {
+        final int cameraFps = Math.round(frameCount * 1000.0f / CAMERA_OBSERVER_PERIOD_MS);
+        Logging.d(TAG, "Camera fps: " + cameraFps + ".");
+        if (frameCount == 0) {
+          ++freezePeriodCount;
+          if (CAMERA_OBSERVER_PERIOD_MS * freezePeriodCount >= CAMERA_FREEZE_REPORT_TIMOUT_MS
+              && eventsHandler != null) {
+            Logging.e(TAG, "Camera freezed.");
+            if (surfaceTextureHelper.isTextureInUse()) {
+              // This can only happen if we are capturing to textures.
+              eventsHandler.onCameraFreezed("Camera failure. Client must return video buffers.");
             } else {
-               this.this$0.freezePeriodCount = 0;
+              eventsHandler.onCameraFreezed("Camera failure.");
             }
-
-            this.this$0.frameCount = 0;
-            this.this$0.surfaceTextureHelper.getHandler().postDelayed(this, 2000L);
-         }
-      };
-
-      public CameraStatistics(SurfaceTextureHelper surfaceTextureHelper, CameraVideoCapturer.CameraEventsHandler eventsHandler) {
-         if (surfaceTextureHelper == null) {
-            throw new IllegalArgumentException("SurfaceTextureHelper is null");
-         } else {
-            this.surfaceTextureHelper = surfaceTextureHelper;
-            this.eventsHandler = eventsHandler;
-            this.frameCount = 0;
-            this.freezePeriodCount = 0;
-            surfaceTextureHelper.getHandler().postDelayed(this.cameraObserver, 2000L);
-         }
+            return;
+          }
+        } else {
+          freezePeriodCount = 0;
+        }
+        frameCount = 0;
+        surfaceTextureHelper.getHandler().postDelayed(this, CAMERA_OBSERVER_PERIOD_MS);
       }
+    };
 
-      private void checkThread() {
-         if (Thread.currentThread() != this.surfaceTextureHelper.getHandler().getLooper().getThread()) {
-            throw new IllegalStateException("Wrong thread");
-         }
+    public CameraStatistics(
+        SurfaceTextureHelper surfaceTextureHelper, CameraEventsHandler eventsHandler) {
+      if (surfaceTextureHelper == null) {
+        throw new IllegalArgumentException("SurfaceTextureHelper is null");
       }
+      this.surfaceTextureHelper = surfaceTextureHelper;
+      this.eventsHandler = eventsHandler;
+      this.frameCount = 0;
+      this.freezePeriodCount = 0;
+      surfaceTextureHelper.getHandler().postDelayed(cameraObserver, CAMERA_OBSERVER_PERIOD_MS);
+    }
 
-      public void addFrame() {
-         this.checkThread();
-         ++this.frameCount;
+    private void checkThread() {
+      if (Thread.currentThread() != surfaceTextureHelper.getHandler().getLooper().getThread()) {
+        throw new IllegalStateException("Wrong thread");
       }
+    }
 
-      public void release() {
-         this.surfaceTextureHelper.getHandler().removeCallbacks(this.cameraObserver);
-      }
-   }
+    public void addFrame() {
+      checkThread();
+      ++frameCount;
+    }
 
-   /** @deprecated */
-   @Deprecated
-   public interface MediaRecorderHandler {
-      void onMediaRecorderSuccess();
-
-      void onMediaRecorderError(String var1);
-   }
-
-   public interface CameraSwitchHandler {
-      void onCameraSwitchDone(boolean var1);
-
-      void onCameraSwitchError(String var1);
-   }
-
-   public interface CameraEventsHandler {
-      void onCameraError(String var1);
-
-      void onCameraDisconnected();
-
-      void onCameraFreezed(String var1);
-
-      void onCameraOpening(String var1);
-
-      void onFirstFrameAvailable();
-
-      void onCameraClosed();
-   }
+    public void release() {
+      surfaceTextureHelper.getHandler().removeCallbacks(cameraObserver);
+    }
+  }
 }

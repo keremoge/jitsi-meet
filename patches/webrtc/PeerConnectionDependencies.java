@@ -1,44 +1,65 @@
+/*
+ *  Copyright 2018 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 import androidx.annotation.Nullable;
 
+/**
+ * PeerConnectionDependencies holds all PeerConnection dependencies that are
+ * applied per PeerConnection. A dependency is distinct from a configuration
+ * as it defines significant executable code that can be provided by a user of
+ * the API.
+ */
 public final class PeerConnectionDependencies {
-   private final PeerConnection.Observer observer;
-   private final SSLCertificateVerifier sslCertificateVerifier;
+  // Mandatory dependencies.
+  private final PeerConnection.Observer observer;
 
-   public static PeerConnectionDependencies.Builder builder(PeerConnection.Observer observer) {
-      return new PeerConnectionDependencies.Builder(observer);
-   }
+  // Optional fields.
+  private final SSLCertificateVerifier sslCertificateVerifier;
 
-   PeerConnection.Observer getObserver() {
-      return this.observer;
-   }
+  public static class Builder {
+    private PeerConnection.Observer observer;
+    private SSLCertificateVerifier sslCertificateVerifier;
 
-   @Nullable
-   SSLCertificateVerifier getSSLCertificateVerifier() {
-      return this.sslCertificateVerifier;
-   }
-
-   private PeerConnectionDependencies(PeerConnection.Observer observer, SSLCertificateVerifier sslCertificateVerifier) {
+    private Builder(PeerConnection.Observer observer) {
       this.observer = observer;
+    }
+
+    public Builder setSSLCertificateVerifier(SSLCertificateVerifier sslCertificateVerifier) {
       this.sslCertificateVerifier = sslCertificateVerifier;
-   }
+      return this;
+    }
 
-   public static class Builder {
-      private PeerConnection.Observer observer;
-      private SSLCertificateVerifier sslCertificateVerifier;
+    // Observer is a required dependency and so is forced in the construction of the object.
+    public PeerConnectionDependencies createPeerConnectionDependencies() {
+      return new PeerConnectionDependencies(observer, sslCertificateVerifier);
+    }
+  }
 
-      private Builder(PeerConnection.Observer observer) {
-         this.observer = observer;
-      }
+  public static Builder builder(PeerConnection.Observer observer) {
+    return new Builder(observer);
+  }
 
-      public PeerConnectionDependencies.Builder setSSLCertificateVerifier(SSLCertificateVerifier sslCertificateVerifier) {
-         this.sslCertificateVerifier = sslCertificateVerifier;
-         return this;
-      }
+  PeerConnection.Observer getObserver() {
+    return observer;
+  }
 
-      public PeerConnectionDependencies createPeerConnectionDependencies() {
-         return new PeerConnectionDependencies(this.observer, this.sslCertificateVerifier);
-      }
-   }
+  @Nullable
+  SSLCertificateVerifier getSSLCertificateVerifier() {
+    return sslCertificateVerifier;
+  }
+
+  private PeerConnectionDependencies(
+      PeerConnection.Observer observer, SSLCertificateVerifier sslCertificateVerifier) {
+    this.observer = observer;
+    this.sslCertificateVerifier = sslCertificateVerifier;
+  }
 }

@@ -1,35 +1,41 @@
+/*
+ *  Copyright 2015 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 public class CallSessionFileRotatingLogSink {
-   private long nativeSink;
+  private long nativeSink;
 
-   public static byte[] getLogData(String dirPath) {
-      if (dirPath == null) {
-         throw new IllegalArgumentException("dirPath may not be null.");
-      } else {
-         return nativeGetLogData(dirPath);
-      }
-   }
+  public static byte[] getLogData(String dirPath) {
+    if (dirPath == null) {
+      throw new IllegalArgumentException("dirPath may not be null.");
+    }
+    return nativeGetLogData(dirPath);
+  }
 
-   public CallSessionFileRotatingLogSink(String dirPath, int maxFileSize, Logging.Severity severity) {
-      if (dirPath == null) {
-         throw new IllegalArgumentException("dirPath may not be null.");
-      } else {
-         this.nativeSink = nativeAddSink(dirPath, maxFileSize, severity.ordinal());
-      }
-   }
+  public CallSessionFileRotatingLogSink(
+      String dirPath, int maxFileSize, Logging.Severity severity) {
+    if (dirPath == null) {
+      throw new IllegalArgumentException("dirPath may not be null.");
+    }
+    nativeSink = nativeAddSink(dirPath, maxFileSize, severity.ordinal());
+  }
 
-   public void dispose() {
-      if (this.nativeSink != 0L) {
-         nativeDeleteSink(this.nativeSink);
-         this.nativeSink = 0L;
-      }
+  public void dispose() {
+    if (nativeSink != 0) {
+      nativeDeleteSink(nativeSink);
+      nativeSink = 0;
+    }
+  }
 
-   }
-
-   private static native long nativeAddSink(String var0, int var1, int var2);
-
-   private static native void nativeDeleteSink(long var0);
-
-   private static native byte[] nativeGetLogData(String var0);
+  private static native long nativeAddSink(String dirPath, int maxFileSize, int severity);
+  private static native void nativeDeleteSink(long sink);
+  private static native byte[] nativeGetLogData(String dirPath);
 }

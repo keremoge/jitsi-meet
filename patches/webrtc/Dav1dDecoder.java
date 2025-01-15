@@ -1,5 +1,5 @@
 /*
- *  Copyright 2020 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2021 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -10,8 +10,11 @@
 
 package org.webrtc;
 
-import android.content.Context;
+public class Dav1dDecoder extends WrappedNativeVideoDecoder {
+  @Override
+  public long createNative(long webrtcEnvRef) {
+    return nativeCreateDecoder();
+  }
 
-public interface NetworkChangeDetectorFactory {
-  public NetworkChangeDetector create(NetworkChangeDetector.Observer observer, Context context);
+  static native long nativeCreateDecoder();
 }

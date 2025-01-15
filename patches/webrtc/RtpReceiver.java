@@ -1,87 +1,98 @@
+/*
+ *  Copyright 2015 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 import androidx.annotation.Nullable;
+import org.webrtc.MediaStreamTrack;
 
+/** Java wrapper for a C++ RtpReceiverInterface. */
 public class RtpReceiver {
-   private long nativeRtpReceiver;
-   private long nativeObserver;
-   @Nullable
-   private MediaStreamTrack cachedTrack;
+  /** Java wrapper for a C++ RtpReceiverObserverInterface*/
+  public static interface Observer {
+    // Called when the first audio or video packet is received.
+    @CalledByNative("Observer")
+    public void onFirstPacketReceived(MediaStreamTrack.MediaType media_type);
+  }
 
-   @CalledByNative
-   public RtpReceiver(long nativeRtpReceiver) {
-      this.nativeRtpReceiver = nativeRtpReceiver;
-      long nativeTrack = nativeGetTrack(nativeRtpReceiver);
-      this.cachedTrack = MediaStreamTrack.createMediaStreamTrack(nativeTrack);
-   }
+  private long nativeRtpReceiver;
+  private long nativeObserver;
 
-   @Nullable
-   public MediaStreamTrack track() {
-      return this.cachedTrack;
-   }
+  @Nullable private MediaStreamTrack cachedTrack;
 
-   public RtpParameters getParameters() {
-      this.checkRtpReceiverExists();
-      return nativeGetParameters(this.nativeRtpReceiver);
-   }
+  @CalledByNative
+  public RtpReceiver(long nativeRtpReceiver) {
+    this.nativeRtpReceiver = nativeRtpReceiver;
+    long nativeTrack = nativeGetTrack(nativeRtpReceiver);
+    cachedTrack = MediaStreamTrack.createMediaStreamTrack(nativeTrack);
+  }
 
-   public String id() {
-      this.checkRtpReceiverExists();
-      return nativeGetId(this.nativeRtpReceiver);
-   }
+  @Nullable
+  public MediaStreamTrack track() {
+    return cachedTrack;
+  }
 
-   long getNativeRtpReceiver() {
-      this.checkRtpReceiverExists();
-      return this.nativeRtpReceiver;
-   }
+  public RtpParameters getParameters() {
+    checkRtpReceiverExists();
+    return nativeGetParameters(nativeRtpReceiver);
+  }
 
-   @CalledByNative
-   public void dispose() {
-      this.checkRtpReceiverExists();
-      this.cachedTrack.dispose();
-      if (this.nativeObserver != 0L) {
-         nativeUnsetObserver(this.nativeRtpReceiver, this.nativeObserver);
-         this.nativeObserver = 0L;
-      }
+  public String id() {
+    checkRtpReceiverExists();
+    return nativeGetId(nativeRtpReceiver);
+  }
 
-      JniCommon.nativeReleaseRef(this.nativeRtpReceiver);
-      this.nativeRtpReceiver = 0L;
-   }
+  /** Returns a pointer to webrtc::RtpReceiverInterface. */
+  long getNativeRtpReceiver() {
+    checkRtpReceiverExists();
+    return nativeRtpReceiver;
+  }
 
-   public void SetObserver(RtpReceiver.Observer observer) {
-      this.checkRtpReceiverExists();
-      if (this.nativeObserver != 0L) {
-         nativeUnsetObserver(this.nativeRtpReceiver, this.nativeObserver);
-      }
+  @CalledByNative
+  public void dispose() {
+    checkRtpReceiverExists();
+    cachedTrack.dispose();
+    if (nativeObserver != 0) {
+      nativeUnsetObserver(nativeRtpReceiver, nativeObserver);
+      nativeObserver = 0;
+    }
+    JniCommon.nativeReleaseRef(nativeRtpReceiver);
+    nativeRtpReceiver = 0;
+  }
 
-      this.nativeObserver = nativeSetObserver(this.nativeRtpReceiver, observer);
-   }
+  public void SetObserver(Observer observer) {
+    checkRtpReceiverExists();
+    // Unset the existing one before setting a new one.
+    if (nativeObserver != 0) {
+      nativeUnsetObserver(nativeRtpReceiver, nativeObserver);
+    }
+    nativeObserver = nativeSetObserver(nativeRtpReceiver, observer);
+  }
 
-   public void setFrameDecryptor(FrameDecryptor frameDecryptor) {
-      this.checkRtpReceiverExists();
-      nativeSetFrameDecryptor(this.nativeRtpReceiver, frameDecryptor.getNativeFrameDecryptor());
-   }
+  public void setFrameDecryptor(FrameDecryptor frameDecryptor) {
+    checkRtpReceiverExists();
+    nativeSetFrameDecryptor(nativeRtpReceiver, frameDecryptor.getNativeFrameDecryptor());
+  }
 
-   private void checkRtpReceiverExists() {
-      if (this.nativeRtpReceiver == 0L) {
-         throw new IllegalStateException("RtpReceiver has been disposed.");
-      }
-   }
+  private void checkRtpReceiverExists() {
+    if (nativeRtpReceiver == 0) {
+      throw new IllegalStateException("RtpReceiver has been disposed.");
+    }
+  }
 
-   private static native long nativeGetTrack(long var0);
-
-   private static native RtpParameters nativeGetParameters(long var0);
-
-   private static native String nativeGetId(long var0);
-
-   private static native long nativeSetObserver(long var0, RtpReceiver.Observer var2);
-
-   private static native void nativeUnsetObserver(long var0, long var2);
-
-   private static native void nativeSetFrameDecryptor(long var0, long var2);
-
-   public interface Observer {
-      @CalledByNative("Observer")
-      void onFirstPacketReceived(MediaStreamTrack.MediaType var1);
-   }
-}
+  // This should increment the reference count of the track.
+  // Will be released in dispose().
+  private static native long nativeGetTrack(long rtpReceiver);
+  private static native RtpParameters nativeGetParameters(long rtpReceiver);
+  private static native String nativeGetId(long rtpReceiver);
+  private static native long nativeSetObserver(long rtpReceiver, Observer observer);
+  private static native void nativeUnsetObserver(long rtpReceiver, long nativeObserver);
+  private static native void nativeSetFrameDecryptor(long rtpReceiver, long nativeFrameDecryptor);
+};

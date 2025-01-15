@@ -1,41 +1,72 @@
+/*
+ *  Copyright 2017 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
 import androidx.annotation.Nullable;
 
+/** Factory for creating VideoEncoders. */
 public interface VideoEncoderFactory {
-   @Nullable
-   @CalledByNative
-   VideoEncoder createEncoder(VideoCodecInfo var1);
+  public interface VideoEncoderSelector {
+    /** Called with the VideoCodecInfo of the currently used encoder. */
+    @CalledByNative("VideoEncoderSelector") void onCurrentEncoder(VideoCodecInfo info);
 
-   @CalledByNative
-   VideoCodecInfo[] getSupportedCodecs();
+    /**
+     * Called with the current available bitrate. Returns null if the encoder selector prefers to
+     * keep the current encoder or a VideoCodecInfo if a new encoder is preferred.
+     */
+    @Nullable @CalledByNative("VideoEncoderSelector") VideoCodecInfo onAvailableBitrate(int kbps);
 
-   @CalledByNative
-   default VideoCodecInfo[] getImplementations() {
-      return this.getSupportedCodecs();
-   }
-
-   @CalledByNative
-   default VideoEncoderFactory.VideoEncoderSelector getEncoderSelector() {
+    /**
+     * Called every time the encoder input resolution change. Returns null if the encoder selector
+     * prefers to keep the current encoder or a VideoCodecInfo if a new encoder is preferred.
+     */
+    @Nullable
+    @CalledByNative("VideoEncoderSelector")
+    default VideoCodecInfo onResolutionChange(int widht, int height) {
       return null;
-   }
+    }
 
-   public interface VideoEncoderSelector {
-      @CalledByNative("VideoEncoderSelector")
-      void onCurrentEncoder(VideoCodecInfo var1);
+    /**
+     * Called when the currently used encoder signal itself as broken. Returns null if the encoder
+     * selector prefers to keep the current encoder or a VideoCodecInfo if a new encoder is
+     * preferred.
+     */
+    @Nullable @CalledByNative("VideoEncoderSelector") VideoCodecInfo onEncoderBroken();
+  }
 
-      @Nullable
-      @CalledByNative("VideoEncoderSelector")
-      VideoCodecInfo onAvailableBitrate(int var1);
+  /** Creates an encoder for the given video codec. */
+  @Nullable @CalledByNative VideoEncoder createEncoder(VideoCodecInfo info);
 
-      @Nullable
-      @CalledByNative("VideoEncoderSelector")
-      default VideoCodecInfo onResolutionChange(int widht, int height) {
-         return null;
-      }
+  /**
+   * Enumerates the list of supported video codecs. This method will only be called once and the
+   * result will be cached.
+   */
+  @CalledByNative VideoCodecInfo[] getSupportedCodecs();
 
-      @Nullable
-      @CalledByNative("VideoEncoderSelector")
-      VideoCodecInfo onEncoderBroken();
-   }
+  /**
+   * Enumerates the list of supported video codecs that can also be tagged with
+   * implementation information. This method will only be called once and the
+   * result will be cached.
+   */
+  @CalledByNative
+  default VideoCodecInfo[] getImplementations() {
+    return getSupportedCodecs();
+  }
+
+  /**
+   * Returns a VideoEncoderSelector if implemented by the VideoEncoderFactory,
+   * null otherwise.
+   */
+  @CalledByNative
+  default VideoEncoderSelector getEncoderSelector() {
+    return null;
+  }
 }

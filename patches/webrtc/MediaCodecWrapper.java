@@ -1,45 +1,60 @@
+/*
+ *  Copyright 2018 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
+import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCrypto;
 import android.media.MediaFormat;
-import android.media.MediaCodec.BufferInfo;
 import android.os.Bundle;
 import android.view.Surface;
 import java.nio.ByteBuffer;
 
+/**
+ * Subset of methods defined in {@link android.media.MediaCodec} needed by
+ * {@link HardwareVideoEncoder} and {@link AndroidVideoDecoder}. This interface
+ * exists to allow mocking and using a fake implementation in tests.
+ */
 interface MediaCodecWrapper {
-   void configure(MediaFormat var1, Surface var2, MediaCrypto var3, int var4);
+  void configure(MediaFormat format, Surface surface, MediaCrypto crypto, int flags);
 
-   void start();
+  void start();
 
-   void flush();
+  void flush();
 
-   void stop();
+  void stop();
 
-   void release();
+  void release();
 
-   int dequeueInputBuffer(long var1);
+  int dequeueInputBuffer(long timeoutUs);
 
-   void queueInputBuffer(int var1, int var2, int var3, long var4, int var6);
+  void queueInputBuffer(int index, int offset, int size, long presentationTimeUs, int flags);
 
-   int dequeueOutputBuffer(BufferInfo var1, long var2);
+  int dequeueOutputBuffer(MediaCodec.BufferInfo info, long timeoutUs);
 
-   void releaseOutputBuffer(int var1, boolean var2);
+  void releaseOutputBuffer(int index, boolean render);
 
-   MediaFormat getInputFormat();
+  MediaFormat getInputFormat();
 
-   MediaFormat getOutputFormat();
+  MediaFormat getOutputFormat();
 
-   MediaFormat getOutputFormat(int var1);
+  MediaFormat getOutputFormat(int index);
 
-   ByteBuffer getInputBuffer(int var1);
+  ByteBuffer getInputBuffer(int index);
 
-   ByteBuffer getOutputBuffer(int var1);
+  ByteBuffer getOutputBuffer(int index);
 
-   Surface createInputSurface();
+  Surface createInputSurface();
 
-   void setParameters(Bundle var1);
+  void setParameters(Bundle params);
 
-   MediaCodecInfo getCodecInfo();
+  MediaCodecInfo getCodecInfo();
 }

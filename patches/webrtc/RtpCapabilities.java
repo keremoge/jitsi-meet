@@ -1,107 +1,125 @@
+/*
+ *  Copyright 2023 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
+import androidx.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
+import org.webrtc.MediaStreamTrack;
 
 public class RtpCapabilities {
-   public List<RtpCapabilities.CodecCapability> codecs;
-   public List<RtpCapabilities.HeaderExtensionCapability> headerExtensions;
+  public static class CodecCapability {
+    public int preferredPayloadType;
+    // Name used to identify the codec. Equivalent to MIME subtype.
+    public String name;
+    // The media type of this codec. Equivalent to MIME top-level type.
+    public MediaStreamTrack.MediaType kind;
+    // Clock rate in Hertz.
+    public Integer clockRate;
+    // The number of audio channels used. Set to null for video codecs.
+    public Integer numChannels;
+    // The "format specific parameters" field from the "a=fmtp" line in the SDP
+    public Map<String, String> parameters;
+    // The MIME type of the codec. This is a convenience field.
+    public String mimeType;
 
-   @CalledByNative
-   RtpCapabilities(List<RtpCapabilities.CodecCapability> codecs, List<RtpCapabilities.HeaderExtensionCapability> headerExtensions) {
-      this.headerExtensions = headerExtensions;
-      this.codecs = codecs;
-   }
+    public CodecCapability() {}
 
-   @CalledByNative
-   public List<RtpCapabilities.HeaderExtensionCapability> getHeaderExtensions() {
-      return this.headerExtensions;
-   }
+    @CalledByNative("CodecCapability")
+    CodecCapability(int preferredPayloadType, String name, MediaStreamTrack.MediaType kind,
+        Integer clockRate, Integer numChannels, String mimeType, Map<String, String> parameters) {
+      this.preferredPayloadType = preferredPayloadType;
+      this.name = name;
+      this.kind = kind;
+      this.clockRate = clockRate;
+      this.numChannels = numChannels;
+      this.parameters = parameters;
+      this.mimeType = mimeType;
+    }
 
-   @CalledByNative
-   List<RtpCapabilities.CodecCapability> getCodecs() {
-      return this.codecs;
-   }
+    @CalledByNative("CodecCapability")
+    int getPreferredPayloadType() {
+      return preferredPayloadType;
+    }
 
-   public static class HeaderExtensionCapability {
-      private final String uri;
-      private final int preferredId;
-      private final boolean preferredEncrypted;
+    @CalledByNative("CodecCapability")
+    String getName() {
+      return name;
+    }
 
-      @CalledByNative("HeaderExtensionCapability")
-      HeaderExtensionCapability(String uri, int preferredId, boolean preferredEncrypted) {
-         this.uri = uri;
-         this.preferredId = preferredId;
-         this.preferredEncrypted = preferredEncrypted;
-      }
+    @CalledByNative("CodecCapability")
+    MediaStreamTrack.MediaType getKind() {
+      return kind;
+    }
 
-      @CalledByNative("HeaderExtensionCapability")
-      public String getUri() {
-         return this.uri;
-      }
+    @CalledByNative("CodecCapability")
+    Integer getClockRate() {
+      return clockRate;
+    }
 
-      @CalledByNative("HeaderExtensionCapability")
-      public int getPreferredId() {
-         return this.preferredId;
-      }
+    @CalledByNative("CodecCapability")
+    Integer getNumChannels() {
+      return numChannels;
+    }
 
-      @CalledByNative("HeaderExtensionCapability")
-      public boolean getPreferredEncrypted() {
-         return this.preferredEncrypted;
-      }
-   }
+    @CalledByNative("CodecCapability")
+    Map getParameters() {
+      return parameters;
+    }
+  }
 
-   public static class CodecCapability {
-      public int preferredPayloadType;
-      public String name;
-      public MediaStreamTrack.MediaType kind;
-      public Integer clockRate;
-      public Integer numChannels;
-      public Map<String, String> parameters;
-      public String mimeType;
+  public static class HeaderExtensionCapability {
+    private final String uri;
+    private final int preferredId;
+    private final boolean preferredEncrypted;
 
-      public CodecCapability() {
-      }
+    @CalledByNative("HeaderExtensionCapability")
+    HeaderExtensionCapability(String uri, int preferredId, boolean preferredEncrypted) {
+      this.uri = uri;
+      this.preferredId = preferredId;
+      this.preferredEncrypted = preferredEncrypted;
+    }
 
-      @CalledByNative("CodecCapability")
-      CodecCapability(int preferredPayloadType, String name, MediaStreamTrack.MediaType kind, Integer clockRate, Integer numChannels, String mimeType, Map<String, String> parameters) {
-         this.preferredPayloadType = preferredPayloadType;
-         this.name = name;
-         this.kind = kind;
-         this.clockRate = clockRate;
-         this.numChannels = numChannels;
-         this.parameters = parameters;
-         this.mimeType = mimeType;
-      }
+    @CalledByNative("HeaderExtensionCapability")
+    public String getUri() {
+      return uri;
+    }
 
-      @CalledByNative("CodecCapability")
-      int getPreferredPayloadType() {
-         return this.preferredPayloadType;
-      }
+    @CalledByNative("HeaderExtensionCapability")
+    public int getPreferredId() {
+      return preferredId;
+    }
 
-      @CalledByNative("CodecCapability")
-      String getName() {
-         return this.name;
-      }
+    @CalledByNative("HeaderExtensionCapability")
+    public boolean getPreferredEncrypted() {
+      return preferredEncrypted;
+    }
+  }
 
-      @CalledByNative("CodecCapability")
-      MediaStreamTrack.MediaType getKind() {
-         return this.kind;
-      }
+  public List<CodecCapability> codecs;
+  public List<HeaderExtensionCapability> headerExtensions;
 
-      @CalledByNative("CodecCapability")
-      Integer getClockRate() {
-         return this.clockRate;
-      }
+  @CalledByNative
+  RtpCapabilities(List<CodecCapability> codecs, List<HeaderExtensionCapability> headerExtensions) {
+    this.headerExtensions = headerExtensions;
+    this.codecs = codecs;
+  }
 
-      @CalledByNative("CodecCapability")
-      Integer getNumChannels() {
-         return this.numChannels;
-      }
+  @CalledByNative
+  public List<HeaderExtensionCapability> getHeaderExtensions() {
+    return headerExtensions;
+  }
 
-      @CalledByNative("CodecCapability")
-      Map getParameters() {
-         return this.parameters;
-      }
-   }
+  @CalledByNative
+  List<CodecCapability> getCodecs() {
+    return codecs;
+  }
 }

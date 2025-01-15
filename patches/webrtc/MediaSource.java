@@ -1,65 +1,74 @@
+/*
+ *  Copyright 2013 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
 package org.webrtc;
 
+/** Java wrapper for a C++ MediaSourceInterface. */
 public class MediaSource {
-   private final RefCountDelegate refCountDelegate;
-   private long nativeSource;
+  /** Tracks MediaSourceInterface.SourceState */
+  public enum State {
+    INITIALIZING,
+    LIVE,
+    ENDED,
+    MUTED;
 
-   public MediaSource(long nativeSource) {
-      this.refCountDelegate = new RefCountDelegate(() -> {
-         JniCommon.nativeReleaseRef(nativeSource);
-      });
-      this.nativeSource = nativeSource;
-   }
+    @CalledByNative("State")
+    static State fromNativeIndex(int nativeIndex) {
+      return values()[nativeIndex];
+    }
+  }
 
-   public MediaSource.State state() {
-      this.checkMediaSourceExists();
-      return nativeGetState(this.nativeSource);
-   }
+  private final RefCountDelegate refCountDelegate;
+  private long nativeSource;
 
-   public void dispose() {
-      this.checkMediaSourceExists();
-      this.refCountDelegate.release();
-      this.nativeSource = 0L;
-   }
+  public MediaSource(long nativeSource) {
+    refCountDelegate = new RefCountDelegate(() -> JniCommon.nativeReleaseRef(nativeSource));
+    this.nativeSource = nativeSource;
+  }
 
-   protected long getNativeMediaSource() {
-      this.checkMediaSourceExists();
-      return this.nativeSource;
-   }
+  public State state() {
+    checkMediaSourceExists();
+    return nativeGetState(nativeSource);
+  }
 
-   void runWithReference(Runnable runnable) {
-      if (this.refCountDelegate.safeRetain()) {
-         try {
-            runnable.run();
-         } finally {
-            this.refCountDelegate.release();
-         }
+  public void dispose() {
+    checkMediaSourceExists();
+    refCountDelegate.release();
+    nativeSource = 0;
+  }
+
+  /** Returns a pointer to webrtc::MediaSourceInterface. */
+  protected long getNativeMediaSource() {
+    checkMediaSourceExists();
+    return nativeSource;
+  }
+
+  /**
+   * Runs code in {@code runnable} holding a reference to the media source. If the object has
+   * already been released, does nothing.
+   */
+  void runWithReference(Runnable runnable) {
+    if (refCountDelegate.safeRetain()) {
+      try {
+        runnable.run();
+      } finally {
+        refCountDelegate.release();
       }
+    }
+  }
 
-   }
+  private void checkMediaSourceExists() {
+    if (nativeSource == 0) {
+      throw new IllegalStateException("MediaSource has been disposed.");
+    }
+  }
 
-   private void checkMediaSourceExists() {
-      if (this.nativeSource == 0L) {
-         throw new IllegalStateException("MediaSource has been disposed.");
-      }
-   }
-
-   private static native MediaSource.State nativeGetState(long var0);
-
-   public static enum State {
-      INITIALIZING,
-      LIVE,
-      ENDED,
-      MUTED;
-
-      @CalledByNative("State")
-      static MediaSource.State fromNativeIndex(int nativeIndex) {
-         return values()[nativeIndex];
-      }
-
-      // $FF: synthetic method
-      private static MediaSource.State[] $values() {
-         return new MediaSource.State[]{INITIALIZING, LIVE, ENDED, MUTED};
-      }
-   }
+  private static native State nativeGetState(long pointer);
 }
