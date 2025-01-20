@@ -72,6 +72,9 @@ class Camera2Session implements CameraSession {
   // Used only for stats. Only used on the camera thread.
   private final long constructionTimeNs; // Construction time of this class.
 
+  private boolean isFlashEnabled = false;
+  private CaptureRequest.Builder captureRequestBuilder;
+
   private class CameraStateCallback extends CameraDevice.StateCallback {
     private String getErrorDescription(int errorCode) {
       switch (errorCode) {
@@ -158,8 +161,7 @@ class Camera2Session implements CameraSession {
          * TEMPLATE_RECORD: Stable frame rate is used, and post-processing is set for recording
          *   quality.
          */
-        final CaptureRequest.Builder captureRequestBuilder =
-            cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+        captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
         // Set auto exposure fps range.
         captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
             new Range<Integer>(captureFormat.framerate.min / fpsUnitFactor,
@@ -421,6 +423,23 @@ class Camera2Session implements CameraSession {
   private void checkIsOnCameraThread() {
     if (Thread.currentThread() != cameraThreadHandler.getLooper().getThread()) {
       throw new IllegalStateException("Wrong thread");
+    }
+  }
+
+  @Override
+  public void toggleFlash() {
+    try {
+      if (!isFlashEnabled) {
+        captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_TORCH);
+        captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
+        isFlashEnabled = true;
+      } else {
+        captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
+        captureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
+        isFlashEnabled = false;
+      }
+    } catch (CameraAccessException e) {
+      return;
     }
   }
 }

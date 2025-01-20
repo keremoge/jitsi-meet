@@ -49,6 +49,8 @@ class Camera1Session implements CameraSession {
   private SessionState state;
   private boolean firstFrameReported;
 
+  private boolean isFlashEnabled = false;
+
   // TODO(titovartem) make correct fix during webrtc:9175
   @SuppressWarnings("ByteBufferBackingArray")
   public static void create(final CreateSessionCallback callback, final Events events,
@@ -335,6 +337,25 @@ class Camera1Session implements CameraSession {
   private void checkIsOnCameraThread() {
     if (Thread.currentThread() != cameraThreadHandler.getLooper().getThread()) {
       throw new IllegalStateException("Wrong thread");
+    }
+  }
+
+  @Override
+  public void toggleFlash() {
+    android.hardware.Camera.Parameters parameters = camera.getParameters();
+    if(!isFlashEnabled) {
+      List <String> supportedTorchModes = parameters.getSupportedFlashModes();
+      if(supportedTorchModes != null) {
+        if(supportedTorchModes.contains(android.hardware.Camera.Parameters.FLASH_MODE_TORCH)) {
+          parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_TORCH);
+        } else if(supportedTorchModes.contains(android.hardware.Camera.Parameters.FLASH_MODE_ON)) {
+          parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_ON);
+        }
+        isFlashEnabled = true;
+      }
+    } else {
+      parameters.setFlashMode(android.hardware.Camera.Parameters.FLASH_MODE_OFF);
+      isFlashEnabled = false;
     }
   }
 }

@@ -169,4 +169,6 @@ public interface CameraVideoCapturer extends VideoCapturer {
       surfaceTextureHelper.getHandler().removeCallbacks(cameraObserver);
     }
   }
+
+  public void toggleFlash();
 }

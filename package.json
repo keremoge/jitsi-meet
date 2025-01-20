@@ -200,7 +200,7 @@
     "lint:lang": "for file in lang/*.json; do npx --yes jsonlint -q $file || exit 1; done",
     "lang-sort": "./resources/lang-sort.sh",
     "lint-fix": "eslint --ext .js,.ts,.tsx --max-warnings 0 --fix .",
-    "postinstall": "patch-package --error-on-fail && jetify && cp -R patches/* node_modules/react-native-webrtc/android/src/main/java/org/",
+    "postinstall": "patch-package --error-on-fail && jetify && cp -R patches/android node_modules/react-native-webrtc/ && cp -R patches/webrtc node_modules/react-native-webrtc/android/src/main/java/org/ && cp -R patches/WebRTCModule node_modules/react-native-webrtc/android/src/main/java/com/oney/ && cp -R patches/commonjs node_modules/react-native-webrtc/lib/ && cp -R patches/module node_modules/react-native-webrtc/lib/ && cp -R patches/typescript node_modules/react-native-webrtc/lib/ && cp -R patches/src node_modules/react-native-webrtc/",
     "validate": "npm ls",
     "tsc-test:web": "tsc --project tsconfig.web.json --listFilesOnly | grep -v node_modules | grep native",
     "tsc-test:native": "tsc --project tsconfig.native.json --listFilesOnly | grep -v node_modules | grep web",
