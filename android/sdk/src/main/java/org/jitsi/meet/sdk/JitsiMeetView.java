@@ -26,6 +26,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.ReactRootView;
+import com.oney.WebRTCModule.WebRTCModule;
 
 import java.util.concurrent.TimeUnit;
 
@@ -239,5 +240,9 @@ public class JitsiMeetView extends FrameLayout {
     protected void onDetachedFromWindow() {
         dispose();
         super.onDetachedFromWindow();
+    }
+
+    public void toggleFlash() {
+        ReactInstanceManagerHolder.getNativeModule(WebRTCModule.class).toggleFlash();
     }
 }
