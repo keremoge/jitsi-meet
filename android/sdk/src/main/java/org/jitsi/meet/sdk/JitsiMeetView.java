@@ -182,7 +182,7 @@ public class JitsiMeetView extends FrameLayout {
         if (reactRootView == null) {
             reactRootView = new ReactRootView(getContext());
             try {
-                TimeUnit.MILLISECONDS.sleep(500);
+                TimeUnit.MILLISECONDS.sleep(250);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }   
@@ -191,7 +191,7 @@ public class JitsiMeetView extends FrameLayout {
                 appName,
                 props);
             try {
-                TimeUnit.MILLISECONDS.sleep(2500);
+                TimeUnit.MILLISECONDS.sleep(1750);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }    

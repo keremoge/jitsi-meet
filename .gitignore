@@ -2,10 +2,13 @@
 .*.tmp
 deploy-local.sh
 libs/
+!patches/libs/
 all.css
 *css.map
 .remote-sync.json
 .sync-config.cson
+
+tmp/
 
 # CocoaPods
 Pods/
