@@ -71,132 +71,132 @@
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-amplitude</artifactId>
-      <version>2.17.3-jitsi-19191923</version>
+      <version>2.17.3-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-giphy</artifactId>
-      <version>2.3.0-jitsi-19191923</version>
+      <version>2.3.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-google-signin</artifactId>
-      <version>10.1.0-jitsi-19191923</version>
+      <version>10.1.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-async-storage</artifactId>
-      <version>1.23.1-jitsi-19191923</version>
+      <version>1.23.1-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-background-timer</artifactId>
-      <version>2.4.1-jitsi-19191923</version>
+      <version>2.4.1-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-calendar-events</artifactId>
-      <version>2.2.0-jitsi-19191923</version>
+      <version>2.2.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-community_clipboard</artifactId>
-      <version>1.14.1-jitsi-19191923</version>
+      <version>1.14.1-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-community_netinfo</artifactId>
-      <version>11.1.0-jitsi-19191923</version>
+      <version>11.1.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-default-preference</artifactId>
-      <version>1.4.4-jitsi-19191923</version>
+      <version>1.4.4-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-device-info</artifactId>
-      <version>10.9.0-jitsi-19191923</version>
+      <version>10.9.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-gesture-handler</artifactId>
-      <version>2.18.1-jitsi-19191923</version>
+      <version>2.18.1-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-get-random-values</artifactId>
-      <version>1.9.0-jitsi-19191923</version>
+      <version>1.9.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-immersive-mode</artifactId>
-      <version>2.0.2-jitsi-19191923</version>
+      <version>2.0.2-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-keep-awake</artifactId>
-      <version>4.0.0-jitsi-19191923</version>
+      <version>4.0.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-orientation-locker</artifactId>
-      <version>1.6.0-jitsi-19191923</version>
+      <version>1.6.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-pager-view</artifactId>
-      <version>6.2.0-jitsi-19191923</version>
+      <version>6.2.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-performance</artifactId>
-      <version>5.0.0-jitsi-19191923</version>
+      <version>5.0.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-safe-area-context</artifactId>
-      <version>4.10.8-jitsi-19191923</version>
+      <version>4.10.8-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-screens</artifactId>
-      <version>3.32.0-jitsi-19191923</version>
+      <version>3.32.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-slider</artifactId>
-      <version>4.4.3-jitsi-19191923</version>
+      <version>4.4.3-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-sound</artifactId>
-      <version>0.11.2-jitsi-19191923</version>
+      <version>0.11.2-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-splash-screen</artifactId>
-      <version>3.3.0-jitsi-19191923</version>
+      <version>3.3.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-svg</artifactId>
-      <version>13.13.0-jitsi-19191923</version>
+      <version>13.13.0-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-video</artifactId>
-      <version>6.0.0-alpha.11-jitsi-19191923</version>
+      <version>6.0.0-alpha.11-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-webrtc</artifactId>
-      <version>124.0.4-jitsi-19191923</version>
+      <version>124.0.4-jitsi-19191936</version>
     </dependency>
     <dependency>
       <groupId>com.facebook.react</groupId>
       <artifactId>react-native-webview</artifactId>
-      <version>13.8.7-jitsi-19191923</version>
+      <version>13.8.7-jitsi-19191936</version>
     </dependency>
   </dependencies>
 </project>
